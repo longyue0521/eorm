@@ -38,4 +38,4 @@
 我想要的社区是大家统一在 github 下，利用 issue 和 discussion 来讨论问题。这样别的用户都可以搜索到所有的讨论。
 
 ## 加入我们
-- [贡献指南](https://ekit.gocn.vip/contribution/#%E8%AE%BE%E7%BD%AE%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83)
+- [贡献者指南](https://doc.meoying.com/)
