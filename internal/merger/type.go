@@ -16,6 +16,8 @@ package merger
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/ecodeclub/eorm/internal/rows"
 )
@@ -27,8 +29,21 @@ type Merger interface {
 }
 
 type ColumnInfo struct {
-	Index int
-	Name  string
+	Index         int
+	Name          string
+	AggregateFunc string
+	Alias         string
+	ASC           bool
+}
+
+func (c ColumnInfo) SelectName() string {
+	if c.Alias != "" {
+		return c.Alias
+	}
+	if c.AggregateFunc != "" {
+		return fmt.Sprintf("%s(%s)", c.AggregateFunc, c.Name)
+	}
+	return c.Name
 }
 
 func NewColumnInfo(index int, name string) ColumnInfo {
@@ -36,4 +51,10 @@ func NewColumnInfo(index int, name string) ColumnInfo {
 		Index: index,
 		Name:  name,
 	}
+}
+
+func (c ColumnInfo) Validate() bool {
+	// ColumnInfo.Name中不能包含括号,也就是聚合函数, name = `id`, 而不是name = count(`id`)
+	// 聚合函数需要写在aggregateFunc字段中
+	return !strings.Contains(c.Name, "(")
 }

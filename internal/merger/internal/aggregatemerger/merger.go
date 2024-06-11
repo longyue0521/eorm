@@ -25,7 +25,7 @@ import (
 
 	"github.com/ecodeclub/ekit/sqlx"
 
-	"github.com/ecodeclub/eorm/internal/merger/aggregatemerger/aggregator"
+	"github.com/ecodeclub/eorm/internal/merger/internal/aggregatemerger/aggregator"
 	"github.com/ecodeclub/eorm/internal/merger/internal/errs"
 	"go.uber.org/multierr"
 )
@@ -64,8 +64,8 @@ func (m *Merger) Merge(ctx context.Context, results []rows.Rows) (rows.Rows, err
 		rowsList:    results,
 		aggregators: m.aggregators,
 		mu:          &sync.RWMutex{},
-		//聚合函数AVG传递到各个sql.Rows时会被转化为SUM和COUNT，这是一个对外不可见的转化。
-		//所以merger.Rows的列名及顺序是由上方aggregator出现的顺序及ColumnName()的返回值决定的而不是sql.Rows。
+		// 聚合函数AVG传递到各个sql.Rows时会被转化为SUM和COUNT，这是一个对外不可见的转化。
+		// 所以merger.Rows的列名及顺序是由上方aggregator出现的顺序及ColumnName()的返回值决定的而不是sql.Rows。
 		columns: m.colNames,
 	}, nil
 
@@ -83,6 +83,8 @@ type Rows struct {
 }
 
 func (r *Rows) ColumnTypes() ([]*sql.ColumnType, error) {
+	// TOTO: 应该返回 AVG 对应的名字和类型
+	// rowsList[0].ColumnTypes 返回 SUM, COUNT 是我们该写后的, 抽象有破口
 	return r.rowsList[0].ColumnTypes()
 }
 
@@ -179,6 +181,7 @@ func (r *Rows) Scan(dest ...any) error {
 		return errs.ErrMergerScanNotNext
 	}
 	for i := 0; i < len(dest); i++ {
+
 		err := rows.ConvertAssign(dest[i], r.cur[i])
 		if err != nil {
 			return err
