@@ -64,19 +64,19 @@ func (ms *MergerSuite) TearDownTest() {
 
 func (ms *MergerSuite) initMock(t *testing.T) {
 	var err error
-	ms.mockDB01, ms.mock01, err = sqlmock.New()
+	ms.mockDB01, ms.mock01, err = sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms.mockDB02, ms.mock02, err = sqlmock.New()
+	ms.mockDB02, ms.mock02, err = sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms.mockDB03, ms.mock03, err = sqlmock.New()
+	ms.mockDB03, ms.mock03, err = sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
-	ms.mockDB04, ms.mock04, err = sqlmock.New()
+	ms.mockDB04, ms.mock04, err = sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,18 +98,18 @@ func (ms *MergerSuite) TestAggregatorMerger_Merge() {
 		{
 			name: "正常案例",
 			aggregators: []aggregator.Aggregator{
-				aggregator.NewCount(merger.NewColumnInfo(2, "id")),
+				aggregator.NewCount(merger.ColumnInfo{Index: 2, Name: "id", AggregateFunc: "COUNT"}),
 			},
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "county"),
-				merger.NewColumnInfo(1, "gender"),
+				{Index: 0, Name: "county"},
+				{Index: 1, Name: "gender"},
 			},
 			rowsList: func() []rows.Rows {
 				query := "SELECT `county`,`gender`,SUM(`id`) FROM `t1` GROUP BY `country`,`gender`"
 				cols := []string{"county", "gender", "SUM(id)"}
-				ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("hangzhou", "male", 10).AddRow("hangzhou", "female", 20).AddRow("shanghai", "female", 30))
-				ms.mock02.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 40).AddRow("shanghai", "female", 50).AddRow("hangzhou", "female", 60))
-				ms.mock03.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 70).AddRow("shanghai", "female", 80))
+				ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("hangzhou", "male", 10).AddRow("hangzhou", "female", 20).AddRow("shanghai", "female", 30))
+				ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 40).AddRow("shanghai", "female", 50).AddRow("hangzhou", "female", 60))
+				ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 70).AddRow("shanghai", "female", 80))
 				dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 				rowsList := make([]rows.Rows, 0, len(dbs))
 				for _, db := range dbs {
@@ -129,17 +129,17 @@ func (ms *MergerSuite) TestAggregatorMerger_Merge() {
 		{
 			name: "超时",
 			aggregators: []aggregator.Aggregator{
-				aggregator.NewCount(merger.NewColumnInfo(1, "id")),
+				aggregator.NewCount(merger.ColumnInfo{Index: 1, Name: "id", AggregateFunc: "COUNT"}),
 			},
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "user_name"),
+				{Index: 0, Name: "user_name"},
 			},
 			rowsList: func() []rows.Rows {
 				query := "SELECT `user_name`,SUM(`id`) FROM `t1` GROUP BY `user_name`"
 				cols := []string{"user_name", "SUM(id)"}
-				ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 10).AddRow("dm", 20))
-				ms.mock02.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("xz", 10).AddRow("zwl", 20))
-				ms.mock03.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("dm", 20))
+				ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 10).AddRow("dm", 20))
+				ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("xz", 10).AddRow("zwl", 20))
+				ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("dm", 20))
 				dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 				rowsList := make([]rows.Rows, 0, len(dbs))
 				for _, db := range dbs {
@@ -158,10 +158,13 @@ func (ms *MergerSuite) TestAggregatorMerger_Merge() {
 		{
 			name: "rowsList为空",
 			aggregators: []aggregator.Aggregator{
-				aggregator.NewCount(merger.NewColumnInfo(1, "id")),
+				aggregator.NewCount(merger.ColumnInfo{Index: 1, Name: "id", AggregateFunc: "COUNT"}),
 			},
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "user_name"),
+				{
+					Index: 0,
+					Name:  "user_name",
+				},
 			},
 			rowsList: func() []rows.Rows {
 				return []rows.Rows{}
@@ -175,10 +178,10 @@ func (ms *MergerSuite) TestAggregatorMerger_Merge() {
 		{
 			name: "rowsList中有nil",
 			aggregators: []aggregator.Aggregator{
-				aggregator.NewCount(merger.NewColumnInfo(1, "id")),
+				aggregator.NewCount(merger.ColumnInfo{Index: 1, Name: "id", AggregateFunc: "COUNT"}),
 			},
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "user_name"),
+				{Index: 0, Name: "user_name"},
 			},
 			rowsList: func() []rows.Rows {
 				return []rows.Rows{nil}
@@ -192,17 +195,17 @@ func (ms *MergerSuite) TestAggregatorMerger_Merge() {
 		{
 			name: "rowsList中有sql.Rows返回错误",
 			aggregators: []aggregator.Aggregator{
-				aggregator.NewCount(merger.NewColumnInfo(1, "id")),
+				aggregator.NewCount(merger.ColumnInfo{Index: 1, Name: "id", AggregateFunc: "COUNT"}),
 			},
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "user_name"),
+				{Index: 0, Name: "user_name"},
 			},
 			rowsList: func() []rows.Rows {
 				query := "SELECT `user_name`,SUM(`id`) FROM `t1` GROUP BY `user_name`"
 				cols := []string{"user_name", "SUM(id)"}
-				ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 10).AddRow("dm", 20).RowError(1, nextMockErr))
-				ms.mock02.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("xz", 10).AddRow("zwl", 20))
-				ms.mock03.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("dm", 20))
+				ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 10).AddRow("dm", 20).RowError(1, nextMockErr))
+				ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("xz", 10).AddRow("zwl", 20))
+				ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("dm", 20))
 				dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 				rowsList := make([]rows.Rows, 0, len(dbs))
 				for _, db := range dbs {
@@ -221,9 +224,9 @@ func (ms *MergerSuite) TestAggregatorMerger_Merge() {
 	}
 	for _, tc := range testcases {
 		ms.T().Run(tc.name, func(t *testing.T) {
-			merger := NewAggregatorMerger(tc.aggregators, tc.GroupByColumns)
+			m := NewAggregatorMerger(tc.aggregators, tc.GroupByColumns)
 			ctx, cancel := tc.ctx()
-			groupByRows, err := merger.Merge(ctx, tc.rowsList)
+			groupByRows, err := m.Merge(ctx, tc.rowsList)
 			cancel()
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
@@ -247,17 +250,17 @@ func (ms *MergerSuite) TestAggregatorRows_NextAndScan() {
 		{
 			name: "同一组数据在不同的sql.Rows中",
 			aggregators: []aggregator.Aggregator{
-				aggregator.NewCount(merger.NewColumnInfo(1, "COUNT(id)")),
+				aggregator.NewCount(merger.ColumnInfo{Index: 1, Name: "id", AggregateFunc: "COUNT"}),
 			},
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "user_name"),
+				{Index: 0, Name: "user_name"},
 			},
 			rowsList: func() []rows.Rows {
 				query := "SELECT `user_name`,COUNT(`id`) FROM `t1` GROUP BY `user_name`"
 				cols := []string{"user_name", "SUM(id)"}
-				ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 10).AddRow("dm", 20))
-				ms.mock02.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("xz", 10).AddRow("zwl", 20))
-				ms.mock03.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("dm", 20))
+				ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 10).AddRow("dm", 20))
+				ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("xz", 10).AddRow("zwl", 20))
+				ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("dm", 20))
 				dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 				rowsList := make([]rows.Rows, 0, len(dbs))
 				for _, db := range dbs {
@@ -281,17 +284,17 @@ func (ms *MergerSuite) TestAggregatorRows_NextAndScan() {
 		{
 			name: "同一组数据在同一个sql.Rows中",
 			aggregators: []aggregator.Aggregator{
-				aggregator.NewCount(merger.NewColumnInfo(1, "COUNT(id)")),
+				aggregator.NewCount(merger.ColumnInfo{Index: 1, Name: "id", AggregateFunc: "COUNT"}),
 			},
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "user_name"),
+				{Index: 0, Name: "user_name"},
 			},
 			rowsList: func() []rows.Rows {
 				query := "SELECT `user_name`,COUNT(`id`) FROM `t1` GROUP BY `user_name`"
 				cols := []string{"user_name", "SUM(id)"}
-				ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 10).AddRow("xm", 20))
-				ms.mock02.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("xz", 10).AddRow("xx", 20))
-				ms.mock03.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("dm", 20))
+				ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 10).AddRow("xm", 20))
+				ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("xz", 10).AddRow("xx", 20))
+				ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("dm", 20))
 				dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 				rowsList := make([]rows.Rows, 0, len(dbs))
 				for _, db := range dbs {
@@ -319,18 +322,18 @@ func (ms *MergerSuite) TestAggregatorRows_NextAndScan() {
 		{
 			name: "多个分组列",
 			aggregators: []aggregator.Aggregator{
-				aggregator.NewSum(merger.NewColumnInfo(2, "SUM(id)")),
+				aggregator.NewSum(merger.ColumnInfo{Index: 2, Name: "id", AggregateFunc: "SUM"}),
 			},
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "county"),
-				merger.NewColumnInfo(1, "gender"),
+				{Index: 0, Name: "county"},
+				{Index: 1, Name: "gender"},
 			},
 			rowsList: func() []rows.Rows {
 				query := "SELECT `county`,`gender`,SUM(`id`) FROM `t1` GROUP BY `country`,`gender`"
 				cols := []string{"county", "gender", "SUM(id)"}
-				ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("hangzhou", "male", 10).AddRow("hangzhou", "female", 20).AddRow("shanghai", "female", 30))
-				ms.mock02.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 40).AddRow("shanghai", "female", 50).AddRow("hangzhou", "female", 60))
-				ms.mock03.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 70).AddRow("shanghai", "female", 80))
+				ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("hangzhou", "male", 10).AddRow("hangzhou", "female", 20).AddRow("shanghai", "female", 30))
+				ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 40).AddRow("shanghai", "female", 50).AddRow("hangzhou", "female", 60))
+				ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 70).AddRow("shanghai", "female", 80))
 				dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 				rowsList := make([]rows.Rows, 0, len(dbs))
 				for _, db := range dbs {
@@ -372,20 +375,24 @@ func (ms *MergerSuite) TestAggregatorRows_NextAndScan() {
 		{
 			name: "多个聚合函数",
 			aggregators: []aggregator.Aggregator{
-				aggregator.NewSum(merger.NewColumnInfo(2, "SUM(id)")),
-				aggregator.NewAVG(merger.NewColumnInfo(3, "SUM(age)"), merger.NewColumnInfo(4, "COUNT(age)"), "AVG(age)"),
+				aggregator.NewSum(merger.ColumnInfo{Index: 2, Name: "id", AggregateFunc: "SUM"}),
+				aggregator.NewAVG(
+					merger.ColumnInfo{Index: 3, Name: "age", AggregateFunc: "AVG"},
+					merger.ColumnInfo{Index: 4, Name: "age", AggregateFunc: "SUM"},
+					merger.ColumnInfo{Index: 5, Name: "age", AggregateFunc: "COUNT"},
+				),
 			},
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "county"),
-				merger.NewColumnInfo(1, "gender"),
+				{Index: 0, Name: "county"},
+				{Index: 1, Name: "gender"},
 			},
 
 			rowsList: func() []rows.Rows {
-				query := "SELECT `county`,`gender`,SUM(`id`),SUM(`age`),COUNT(`age`) FROM `t1` GROUP BY `country`,`gender`"
-				cols := []string{"county", "gender", "SUM(id)", "SUM(age)", "COUNT(age)"}
-				ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("hangzhou", "male", 10, 100, 2).AddRow("hangzhou", "female", 20, 120, 3).AddRow("shanghai", "female", 30, 90, 3))
-				ms.mock02.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 40, 120, 5).AddRow("shanghai", "female", 50, 120, 4).AddRow("hangzhou", "female", 60, 150, 3))
-				ms.mock03.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 70, 100, 5).AddRow("shanghai", "female", 80, 150, 5))
+				query := "SELECT `county`,`gender`,SUM(`id`), AVG(`age`), SUM(`age`),COUNT(`age`) FROM `t1` GROUP BY `country`,`gender`"
+				cols := []string{"county", "gender", "SUM(id)", "AVG(`age`)", "SUM(age)", "COUNT(age)"}
+				ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("hangzhou", "male", 10, 50, 100, 2).AddRow("hangzhou", "female", 20, 40, 120, 3).AddRow("shanghai", "female", 30, 30, 90, 3))
+				ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 40, 24, 120, 5).AddRow("shanghai", "female", 50, 30, 120, 4).AddRow("hangzhou", "female", 60, 50, 150, 3))
+				ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("shanghai", "male", 70, 20, 100, 5).AddRow("shanghai", "female", 80, 30, 150, 5))
 				dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 				rowsList := make([]rows.Rows, 0, len(dbs))
 				for _, db := range dbs {
@@ -431,8 +438,8 @@ func (ms *MergerSuite) TestAggregatorRows_NextAndScan() {
 	}
 	for _, tc := range testcases {
 		ms.T().Run(tc.name, func(t *testing.T) {
-			merger := NewAggregatorMerger(tc.aggregators, tc.GroupByColumns)
-			groupByRows, err := merger.Merge(context.Background(), tc.rowsList)
+			m := NewAggregatorMerger(tc.aggregators, tc.GroupByColumns)
+			groupByRows, err := m.Merge(context.Background(), tc.rowsList)
 			require.NoError(t, err)
 
 			idx := 0
@@ -457,33 +464,35 @@ func (ms *MergerSuite) TestAggregatorRows_NextAndScan() {
 func (ms *MergerSuite) TestAggregatorRows_ScanAndErr() {
 	ms.T().Run("未调用Next，直接Scan，返回错", func(t *testing.T) {
 		cols := []string{"userid", "SUM(id)"}
-		query := "SELECT userid,SUM(id) FROM `t1`"
-		ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow(1, 10).AddRow(5, 20))
-		r, err := ms.mockDB01.QueryContext(context.Background(), query)
+		query := "SELECT `userid`,SUM(`id`) FROM `t1`"
+		ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(1, 10).AddRow(5, 20))
+		sqlRows, err := ms.mockDB01.QueryContext(context.Background(), query)
 		require.NoError(t, err)
-		rowsList := []rows.Rows{r}
-		merger := NewAggregatorMerger([]aggregator.Aggregator{aggregator.NewSum(merger.NewColumnInfo(1, "SUM(id)"))}, []merger.ColumnInfo{merger.NewColumnInfo(0, "userid")})
-		rows, err := merger.Merge(context.Background(), rowsList)
+		rowsList := []rows.Rows{sqlRows}
+		m := NewAggregatorMerger([]aggregator.Aggregator{
+			aggregator.NewSum(merger.ColumnInfo{Index: 1, Name: "id", AggregateFunc: "SUM"})},
+			[]merger.ColumnInfo{{Index: 0, Name: "userid"}})
+		r, err := m.Merge(context.Background(), rowsList)
 		require.NoError(t, err)
 		userid := 0
 		sumId := 0
-		err = rows.Scan(&userid, &sumId)
+		err = r.Scan(&userid, &sumId)
 		assert.Equal(t, errs.ErrMergerScanNotNext, err)
 	})
 	ms.T().Run("迭代过程中发现错误,调用Scan，返回迭代中发现的错误", func(t *testing.T) {
 		cols := []string{"userid", "SUM(id)"}
-		query := "SELECT userid,SUM(id) FROM `t1`"
-		ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow(1, 10).AddRow(5, 20))
-		r, err := ms.mockDB01.QueryContext(context.Background(), query)
+		query := "SELECT `userid`,SUM(`id`) FROM `t1`"
+		ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(1, 10).AddRow(5, 20))
+		sqlRows, err := ms.mockDB01.QueryContext(context.Background(), query)
 		require.NoError(t, err)
-		rowsList := []rows.Rows{r}
-		merger := NewAggregatorMerger([]aggregator.Aggregator{&mockAggregate{}}, []merger.ColumnInfo{merger.NewColumnInfo(0, "userid")})
-		rows, err := merger.Merge(context.Background(), rowsList)
+		rowsList := []rows.Rows{sqlRows}
+		m := NewAggregatorMerger([]aggregator.Aggregator{&mockAggregate{}}, []merger.ColumnInfo{{Index: 0, Name: "userid"}})
+		r, err := m.Merge(context.Background(), rowsList)
 		require.NoError(t, err)
 		userid := 0
 		sumId := 0
-		rows.Next()
-		err = rows.Scan(&userid, &sumId)
+		r.Next()
+		err = r.Scan(&userid, &sumId)
 		assert.Equal(t, aggregatorErr, err)
 	})
 
@@ -501,11 +510,11 @@ func (ms *MergerSuite) TestAggregatorRows_NextAndErr() {
 			name: "有一个aggregator返回error",
 			rowsList: func() []rows.Rows {
 				cols := []string{"username", "COUNT(id)"}
-				query := "SELECT username,COUNT(`id`) FROM `t1`"
-				ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 1))
-				ms.mock02.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("daming", 2))
-				ms.mock03.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("wu", 4))
-				ms.mock04.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow("ming", 5))
+				query := "SELECT `username`,COUNT(`id`) FROM `t1`"
+				ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("zwl", 1))
+				ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("david", 2))
+				ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("wu", 4))
+				ms.mock04.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("ming", 5))
 				dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03, ms.mockDB04}
 				rowsList := make([]rows.Rows, 0, len(dbs))
 				for _, db := range dbs {
@@ -521,44 +530,48 @@ func (ms *MergerSuite) TestAggregatorRows_NextAndErr() {
 				}
 			}(),
 			GroupByColumns: []merger.ColumnInfo{
-				merger.NewColumnInfo(0, "username"),
+				{Index: 0, Name: "username"},
 			},
 			wantErr: aggregatorErr,
 		},
 	}
 	for _, tc := range testcases {
 		ms.T().Run(tc.name, func(t *testing.T) {
-			merger := NewAggregatorMerger(tc.aggregators, tc.GroupByColumns)
-			rows, err := merger.Merge(context.Background(), tc.rowsList())
+			m := NewAggregatorMerger(tc.aggregators, tc.GroupByColumns)
+			r, err := m.Merge(context.Background(), tc.rowsList())
 			require.NoError(t, err)
-			for rows.Next() {
+			for r.Next() {
 			}
 			count := int64(0)
 			name := ""
-			err = rows.Scan(&name, &count)
+			err = r.Scan(&name, &count)
 			assert.Equal(t, tc.wantErr, err)
-			assert.Equal(t, tc.wantErr, rows.Err())
+			assert.Equal(t, tc.wantErr, r.Err())
 		})
 	}
 }
 
 func (ms *MergerSuite) TestAggregatorRows_Columns() {
-	cols := []string{"userid", "SUM(grade)", "COUNT(grade)", "SUM(id)", "MIN(id)", "MAX(id)", "COUNT(id)"}
-	query := "SELECT SUM(`grade`),COUNT(`grade`),SUM(`id`),MIN(`id`),MAX(`id`),COUNT(`id`),`userid` FROM `t1`"
-	ms.mock01.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow(1, 1, 2, 1, 3, 10, "zwl"))
-	ms.mock02.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow(2, 1, 3, 2, 4, 11, "dm"))
-	ms.mock03.ExpectQuery("SELECT *").WillReturnRows(sqlmock.NewRows(cols).AddRow(3, 1, 4, 3, 5, 12, "xm"))
+	cols := []string{"user_id", "AVG(`grade`)", "SUM(grade)", "COUNT(grade)", "SUM(grade)", "MIN(grade)", "MAX(grade)", "COUNT(grade)"}
+	query := "SELECT `user_id`, AVG(`grade`), SUM(`grade`),COUNT(`grade`),SUM(`grade`),MIN(`grade`),MAX(`grade`),COUNT(`grade`) FROM `t1` GROUP BY`user_id`"
+	ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(1, 50, 150, 3, 150, 30, 100, 3))
+	ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(2, 100, 200, 2, 200, 50, 150, 2))
+	ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(3, 150, 1, 1, 150, 150, 150, 1))
 	aggregators := []aggregator.Aggregator{
-		aggregator.NewAVG(merger.NewColumnInfo(0, "SUM(grade)"), merger.NewColumnInfo(1, "COUNT(grade)"), "AVG(grade)"),
-		aggregator.NewSum(merger.NewColumnInfo(2, "SUM(id)")),
-		aggregator.NewMin(merger.NewColumnInfo(3, "MIN(id)")),
-		aggregator.NewMax(merger.NewColumnInfo(4, "MAX(id)")),
-		aggregator.NewCount(merger.NewColumnInfo(5, "COUNT(id)")),
+		aggregator.NewAVG(
+			merger.ColumnInfo{Index: 1, Name: "grade", AggregateFunc: "AVG"},
+			merger.ColumnInfo{Index: 2, Name: "grade", AggregateFunc: "SUM"},
+			merger.ColumnInfo{Index: 3, Name: "grade", AggregateFunc: "COUNT"},
+		),
+		aggregator.NewSum(merger.ColumnInfo{Index: 4, Name: "grade", AggregateFunc: "SUM"}),
+		aggregator.NewMin(merger.ColumnInfo{Index: 5, Name: "grade", AggregateFunc: "MIN"}),
+		aggregator.NewMax(merger.ColumnInfo{Index: 6, Name: "grade", AggregateFunc: "MAX"}),
+		aggregator.NewCount(merger.ColumnInfo{Index: 7, Name: "grade", AggregateFunc: "COUNT"}),
 	}
-	groupbyColumns := []merger.ColumnInfo{
-		merger.NewColumnInfo(6, "userid"),
+	groupByColumns := []merger.ColumnInfo{
+		{Index: 0, Name: "user_id"},
 	}
-	merger := NewAggregatorMerger(aggregators, groupbyColumns)
+	m := NewAggregatorMerger(aggregators, groupByColumns)
 	dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 	rowsList := make([]rows.Rows, 0, len(dbs))
 	for _, db := range dbs {
@@ -567,23 +580,79 @@ func (ms *MergerSuite) TestAggregatorRows_Columns() {
 		rowsList = append(rowsList, row)
 	}
 
-	rows, err := merger.Merge(context.Background(), rowsList)
+	r, err := m.Merge(context.Background(), rowsList)
 	require.NoError(ms.T(), err)
-	wantCols := []string{"userid", "AVG(grade)", "SUM(id)", "MIN(id)", "MAX(id)", "COUNT(id)"}
+	wantCols := []string{"user_id", "AVG(grade)", "SUM(grade)", "MIN(grade)", "MAX(grade)", "COUNT(grade)"}
 	ms.T().Run("Next没有迭代完", func(t *testing.T) {
-		for rows.Next() {
-			columns, err := rows.Columns()
+		for r.Next() {
+			columns, err := r.Columns()
 			require.NoError(t, err)
 			assert.Equal(t, wantCols, columns)
 		}
-		require.NoError(t, rows.Err())
+		require.NoError(t, r.Err())
 	})
 	ms.T().Run("Next迭代完", func(t *testing.T) {
-		require.False(t, rows.Next())
-		require.NoError(t, rows.Err())
-		_, err := rows.Columns()
+		require.False(t, r.Next())
+		require.NoError(t, r.Err())
+		_, err := r.Columns()
 		assert.Equal(t, errs.ErrMergerRowsClosed, err)
 	})
+}
+
+func (ms *MergerSuite) TestRows_ColumnTypes() {
+	t := ms.T()
+
+	query := "SELECT AVG(`grade`) AS `avg_grade` FROM `t1`"
+	cols := []string{"`avg_grade`", "SUM(`grade`)", "COUNT(`grade`)"}
+	ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(100, 200, 2))
+	ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(90, 270, 3))
+	ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(110, 440, 4))
+	aggregators := []aggregator.Aggregator{
+		aggregator.NewAVG(
+			merger.ColumnInfo{Index: 0, Name: "`grade`", AggregateFunc: "AVG", Alias: "`avg_grade`"},
+			merger.ColumnInfo{Index: 1, Name: "`grade`", AggregateFunc: "SUM"},
+			merger.ColumnInfo{Index: 2, Name: "`grade`", AggregateFunc: "COUNT"},
+		),
+	}
+
+	groupByColumns := []merger.ColumnInfo{
+		{
+			Index:         0,
+			Name:          "`grade`",
+			AggregateFunc: "AVG",
+			Alias:         "`avg_grade`",
+		},
+	}
+	r, err := NewAggregatorMerger(aggregators, groupByColumns).Merge(context.Background(), getResultSet(t, query, ms.mockDB01, ms.mockDB02, ms.mockDB03))
+	require.NoError(t, err)
+
+	t.Run("rows未关闭", func(t *testing.T) {
+		types, err := r.ColumnTypes()
+		require.NoError(t, err)
+
+		names := make([]string, 0, len(types))
+		for _, typ := range types {
+			names = append(names, typ.Name())
+		}
+		require.Equal(t, []string{"`avg_grade`"}, names)
+	})
+
+	t.Run("rows已关闭", func(t *testing.T) {
+		require.NoError(t, r.Close())
+
+		_, err = r.ColumnTypes()
+		require.ErrorIs(t, err, errs.ErrMergerRowsClosed)
+	})
+}
+
+func getResultSet(t *testing.T, sql string, dbs ...*sql.DB) []rows.Rows {
+	resultSet := make([]rows.Rows, 0, len(dbs))
+	for _, db := range dbs {
+		row, err := db.Query(sql)
+		require.NoError(t, err)
+		resultSet = append(resultSet, row)
+	}
+	return resultSet
 }
 
 type mockAggregate struct {
@@ -595,7 +664,11 @@ func (m *mockAggregate) Aggregate(cols [][]any) (any, error) {
 	return nil, aggregatorErr
 }
 
-func (*mockAggregate) ColumnName() string {
+func (*mockAggregate) ColumnInfo() merger.ColumnInfo {
+	return merger.ColumnInfo{Name: "mockAggregate"}
+}
+
+func (*mockAggregate) Name() string {
 	return "mockAggregate"
 }
 

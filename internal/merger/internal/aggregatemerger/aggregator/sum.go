@@ -23,6 +23,7 @@ import (
 )
 
 type Sum struct {
+	name          string
 	sumColumnInfo merger.ColumnInfo
 }
 
@@ -48,12 +49,17 @@ func (s *Sum) findSumFunc(col []any) (func([][]any, int) (any, error), error) {
 	return sumFunc, nil
 }
 
-func (s *Sum) ColumnName() string {
-	return s.sumColumnInfo.SelectName()
+func (s *Sum) ColumnInfo() merger.ColumnInfo {
+	return s.sumColumnInfo
+}
+
+func (s *Sum) Name() string {
+	return s.name
 }
 
 func NewSum(info merger.ColumnInfo) *Sum {
 	return &Sum{
+		name:          "SUM",
 		sumColumnInfo: info,
 	}
 }

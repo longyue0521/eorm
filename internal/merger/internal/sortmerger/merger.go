@@ -84,7 +84,8 @@ type Merger struct {
 	preScanAll bool
 }
 
-// NewMerger preScanAll 表示是否预先扫描出结果集中的所有到内存
+// NewMerger 根据preScanAll及排序列的列信息来创建一个排序Merger
+// 其中preScanAll为true 表示需要预先扫描出结果集中的所有数据到内存才能得到正确结果,为false每次只需要扫描一行即可得到正确结果
 func NewMerger(preScanAll bool, sortCols ...SortColumn) (*Merger, error) {
 	scs, err := newSortColumns(sortCols...)
 	if err != nil {
@@ -147,6 +148,12 @@ func (m *Merger) initRows(results []rows.Rows) (*Rows, error) {
 	}
 	rs.hp = h
 	var err error
+	// 下方preScanAll会把rowsList中所有数据扫描到内存然后关闭其中所有rows.Rows,所以要提前缓存住列类型信息
+	columnTypes, err := rs.rowsList[0].ColumnTypes()
+	if err != nil {
+		return nil, err
+	}
+	rs.columnTypes = columnTypes
 	for i := 0; i < len(rs.rowsList); i++ {
 		if m.preScanAll {
 			err = rs.preScanAll(rs.rowsList[i], i)
@@ -235,6 +242,7 @@ func newNode(row rows.Rows, sortCols sortColumns, index int) (*node, error) {
 
 type Rows struct {
 	rowsList     []rows.Rows
+	columnTypes  []*sql.ColumnType
 	sortColumns  sortColumns
 	hp           *Heap
 	cur          *node
@@ -246,7 +254,12 @@ type Rows struct {
 }
 
 func (r *Rows) ColumnTypes() ([]*sql.ColumnType, error) {
-	return r.rowsList[0].ColumnTypes()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return nil, fmt.Errorf("%w", errs.ErrMergerRowsClosed)
+	}
+	return r.columnTypes, nil
 }
 
 func (*Rows) NextResultSet() bool {
@@ -265,7 +278,6 @@ func (r *Rows) Next() bool {
 		return false
 	}
 	r.cur = heap.Pop(r.hp).(*node)
-	log.Printf("heap node = %#v\n", r.cur)
 	if !r.isPreScanAll {
 		row := r.rowsList[r.cur.index]
 		err := r.preScanOne(row, r.cur.index)
@@ -282,10 +294,6 @@ func (r *Rows) Next() bool {
 }
 
 func (r *Rows) preScanAll(row rows.Rows, index int) error {
-	// TODO Rows抽象之前的假设 rowList中每个sql.Rows中的数据都是已经排序过的
-	// 所以只需要读取每个sql.Rows的第一行数据,进行比较就可以得到正确答案
-	// 但当使用在pipline中时,就可能需要读取全部sql.Rows中的数据进行排序才能得到正确答案
-	// 当然可以进行针对性的优化——两种读模式,一次读一行,一次读全部
 	for row.Next() {
 		n, err := newNode(row, r.sortColumns, index)
 		if err != nil {
