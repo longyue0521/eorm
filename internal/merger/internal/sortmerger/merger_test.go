@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ecodeclub/eorm/internal/merger"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/ecodeclub/eorm/internal/rows"
@@ -34,7 +35,7 @@ import (
 )
 
 var (
-	nextMockErr error = errors.New("rows: MockNextErr")
+	nextMockErr = errors.New("rows: MockNextErr")
 )
 
 func newCloseMockErr(dbName string) error {
@@ -89,29 +90,41 @@ func (ms *MergerSuite) TestMerger_New() {
 	testcases := []struct {
 		name           string
 		wantErr        error
-		wantSortColumn func() []SortColumn
-		sortCols       []SortColumn
+		wantSortColumn func() []merger.ColumnInfo
+		sortCols       []merger.ColumnInfo
 	}{
 		{
 			name: "正常案例",
-			wantSortColumn: func() []SortColumn {
-				sortCol := NewSortColumn("id", ASC)
-				return []SortColumn{sortCol}
+			wantSortColumn: func() []merger.ColumnInfo {
+				sortCol := merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				}
+				return []merger.ColumnInfo{sortCol}
 			},
-			sortCols: []SortColumn{
-				NewSortColumn("id", ASC),
+			sortCols: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 		{
 			name:     "空的排序列表",
-			sortCols: []SortColumn{},
+			sortCols: []merger.ColumnInfo{},
 			wantErr:  errs.ErrEmptySortColumns,
 		},
 		{
 			name: "排序列重复",
-			sortCols: []SortColumn{
-				NewSortColumn("id", ASC),
-				NewSortColumn("id", DESC),
+			sortCols: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
+				{
+					Name:  "id",
+					Order: merger.OrderDESC,
+				},
 			},
 			wantErr: errs.NewRepeatSortColumn("id"),
 		},
@@ -123,7 +136,7 @@ func (ms *MergerSuite) TestMerger_New() {
 			if err != nil {
 				return
 			}
-			assert.Equal(t, tc.wantSortColumn(), mer.sortColumns.columns)
+			assert.Equal(t, tc.wantSortColumn(), mer.sortColumns.Cols())
 		})
 	}
 }
@@ -140,7 +153,10 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "sqlRows字段不同",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				})
 			},
 			ctx: func() (context.Context, context.CancelFunc) {
 				return context.WithCancel(context.Background())
@@ -163,7 +179,10 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "sqlRows字段不同_少一个字段",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				})
 			},
 			ctx: func() (context.Context, context.CancelFunc) {
 				return context.WithCancel(context.Background())
@@ -186,7 +205,10 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "超时",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				})
 			},
 			ctx: func() (context.Context, context.CancelFunc) {
 				ctx, cancel := context.WithTimeout(context.Background(), 0)
@@ -209,7 +231,10 @@ func (ms *MergerSuite) TestMerger_Merge() {
 				return context.WithCancel(context.Background())
 			},
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				return []rows.Rows{}
@@ -219,7 +244,10 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "sqlRows列表有nil",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				})
 			},
 			ctx: func() (context.Context, context.CancelFunc) {
 				return context.WithCancel(context.Background())
@@ -232,7 +260,10 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "数据库列集: id;排序列集: age",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("age", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "age",
+					Order: merger.OrderASC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				query := "SELECT * FROM `t1`;"
@@ -251,7 +282,13 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "数据库列集: id;排序列集: id,age",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC), NewSortColumn("age", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				}, merger.ColumnInfo{
+					Name:  "age",
+					Order: merger.OrderASC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				query := "SELECT * FROM `t1`;"
@@ -270,7 +307,10 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "数据库列集: id,name,address;排序列集: age",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("age", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "age",
+					Order: merger.OrderASC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				query := "SELECT * FROM `t1`;"
@@ -289,7 +329,16 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "数据库列集: id,name,address;排序列集: id,age,name",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC), NewSortColumn("age", ASC), NewSortColumn("name", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				}, merger.ColumnInfo{
+					Name:  "age",
+					Order: merger.OrderASC,
+				}, merger.ColumnInfo{
+					Name:  "name",
+					Order: merger.OrderASC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				query := "SELECT * FROM `t1`;"
@@ -308,7 +357,16 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "数据库列集: id,name,address;排序列集: id,name,age",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC), NewSortColumn("name", ASC), NewSortColumn("age", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				}, merger.ColumnInfo{
+					Name:  "name",
+					Order: merger.OrderASC,
+				}, merger.ColumnInfo{
+					Name:  "age",
+					Order: merger.OrderASC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				query := "SELECT * FROM `t1`;"
@@ -327,7 +385,10 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "数据库列集: id ;排序列集: id",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				query := "SELECT * FROM `t1`;"
@@ -377,7 +438,13 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "数据库列集: id,age;排序列集: id,age",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC), NewSortColumn("age", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				}, merger.ColumnInfo{
+					Name:  "age",
+					Order: merger.OrderASC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				query := "SELECT * FROM `t1`;"
@@ -398,7 +465,13 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "数据库列集: id,name,address;排序列集: id,name",
 			merger: func() (*Merger, error) {
-				return NewMerger(true, NewSortColumn("name", ASC), NewSortColumn("address", DESC))
+				return NewMerger(true, merger.ColumnInfo{
+					Name:  "name",
+					Order: merger.OrderASC,
+				}, merger.ColumnInfo{
+					Name:  "address",
+					Order: merger.OrderDESC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				query := "SELECT * FROM `t1`;"
@@ -449,7 +522,10 @@ func (ms *MergerSuite) TestMerger_Merge() {
 		{
 			name: "初始化Rows错误",
 			merger: func() (*Merger, error) {
-				return NewMerger(false, NewSortColumn("id", ASC))
+				return NewMerger(false, merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				})
 			},
 			sqlRows: func() []rows.Rows {
 				query := "SELECT * FROM `t1`;"
@@ -497,7 +573,7 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 		name        string
 		sqlRows     func() []rows.Rows
 		wantVal     []TestModel
-		sortColumns []SortColumn
+		sortColumns []merger.ColumnInfo
 		wantErr     error
 	}{
 		{
@@ -549,8 +625,11 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "cn",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 		{
@@ -607,8 +686,11 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "cn",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", DESC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderDESC,
+				},
 			},
 		},
 		{
@@ -677,9 +759,15 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "cn",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
-				NewSortColumn("name", ASC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
+				{
+					Name:  "name",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 		{
@@ -731,8 +819,11 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "cn",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 		{
@@ -789,8 +880,11 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "cn",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 		{
@@ -844,8 +938,11 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "cn",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 		{
@@ -897,8 +994,11 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "cn",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 		{
@@ -946,8 +1046,11 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "cn",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 		{
@@ -1001,8 +1104,11 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "cn",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 
@@ -1025,9 +1131,15 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 				return rowsList
 			},
 			wantVal: []TestModel{},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
-				NewSortColumn("name", ASC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
+				{
+					Name:  "name",
+					Order: merger.OrderASC,
+				},
 			},
 		},
 		{
@@ -1094,9 +1206,15 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 					Address: "xz",
 				},
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("name", ASC),
-				NewSortColumn("id", DESC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "name",
+					Order: merger.OrderASC,
+				},
+				{
+					Name:  "id",
+					Order: merger.OrderDESC,
+				},
 			},
 		},
 	}
@@ -1127,7 +1245,10 @@ func (ms *MergerSuite) TestRows_Columns() {
 	ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("1"))
 	ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("2"))
 	ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("3").AddRow("4"))
-	merger, err := NewMerger(false, NewSortColumn("id", DESC))
+	merger, err := NewMerger(false, merger.ColumnInfo{
+		Name:  "id",
+		Order: merger.OrderDESC,
+	})
 	require.NoError(ms.T(), err)
 	dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 	rowsList := make([]rows.Rows, 0, len(dbs))
@@ -1163,7 +1284,10 @@ func (ms *MergerSuite) TestRows_Close() {
 	ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("1"))
 	ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("2").CloseError(newCloseMockErr("db02")))
 	ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow("3").AddRow("4").CloseError(newCloseMockErr("db03")))
-	merger, err := NewMerger(false, NewSortColumn("id", DESC))
+	merger, err := NewMerger(false, merger.ColumnInfo{
+		Name:  "id",
+		Order: merger.OrderDESC,
+	})
 	require.NoError(ms.T(), err)
 	dbs := []*sql.DB{ms.mockDB01, ms.mockDB02, ms.mockDB03}
 	rowsList := make([]rows.Rows, 0, len(dbs))
@@ -1212,7 +1336,7 @@ func (ms *MergerSuite) TestRows_NextAndErr() {
 		name        string
 		rowsList    func() []rows.Rows
 		wantErr     error
-		sortColumns []SortColumn
+		sortColumns []merger.ColumnInfo
 	}{
 		{
 			name: "sqlRows列表中有一个返回error",
@@ -1232,8 +1356,11 @@ func (ms *MergerSuite) TestRows_NextAndErr() {
 				}
 				return rowsList
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("id", ASC),
+			sortColumns: []merger.ColumnInfo{
+				merger.ColumnInfo{
+					Name:  "id",
+					Order: merger.OrderASC,
+				},
 			},
 			wantErr: nextMockErr,
 		},
@@ -1260,7 +1387,10 @@ func (ms *MergerSuite) TestRows_ScanErr() {
 		r, err := ms.mockDB01.QueryContext(context.Background(), query)
 		require.NoError(t, err)
 		rowsList := []rows.Rows{r}
-		merger, err := NewMerger(false, NewSortColumn("id", DESC))
+		merger, err := NewMerger(false, merger.ColumnInfo{
+			Name:  "id",
+			Order: merger.OrderDESC,
+		})
 		require.NoError(t, err)
 		rows, err := merger.Merge(context.Background(), rowsList)
 		require.NoError(t, err)
@@ -1275,7 +1405,10 @@ func (ms *MergerSuite) TestRows_ScanErr() {
 		r, err := ms.mockDB01.QueryContext(context.Background(), query)
 		require.NoError(t, err)
 		rowsList := []rows.Rows{r}
-		merger, err := NewMerger(false, NewSortColumn("id", DESC))
+		merger, err := NewMerger(false, merger.ColumnInfo{
+			Name:  "id",
+			Order: merger.OrderDESC,
+		})
 		require.NoError(t, err)
 		rows, err := merger.Merge(context.Background(), rowsList)
 		require.NoError(t, err)
@@ -1297,10 +1430,10 @@ func (ms *MergerSuite) TestRows_ColumnTypes() {
 	ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(90))
 	ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(110))
 
-	sortColumns := []SortColumn{
+	sortColumns := []merger.ColumnInfo{
 		{
-			name:  "`grade`",
-			order: DESC,
+			Name:  "`grade`",
+			Order: merger.OrderDESC,
 		},
 	}
 	m, err := NewMerger(true, sortColumns...)
@@ -1398,7 +1531,7 @@ func (ms *NullableMergerSuite) TestRows_Nullable() {
 	testcases := []struct {
 		name        string
 		rowsList    func() []rows.Rows
-		sortColumns []SortColumn
+		sortColumns []merger.ColumnInfo
 		wantErr     error
 		afterFunc   func()
 		wantVal     []Nullable
@@ -1407,27 +1540,27 @@ func (ms *NullableMergerSuite) TestRows_Nullable() {
 			name: "多个nullable类型排序 age asc,name desc",
 			rowsList: func() []rows.Rows {
 				db1InsertSql := []string{
-					"insert into t1  (id,  name) values (1,  'zwl')",
-					"insert into t1  (id, age, name) values (2, 10, 'zwl')",
-					"insert into t1  (id, age, name) values (3, 20, 'zwl')",
-					"insert into t1  (id, age) values (4, 20)",
+					"insert into `t1` (id,  name) values (1,  'zwl')",
+					"insert into `t1` (id, age, name) values (2, 10, 'zwl')",
+					"insert into `t1` (id, age, name) values (3, 20, 'zwl')",
+					"insert into `t1` (id, age) values (4, 20)",
 				}
 				for _, sql := range db1InsertSql {
 					_, err := ms.db01.ExecContext(context.Background(), sql)
 					require.NoError(ms.T(), err)
 				}
 				db2InsertSql := []string{
-					"insert into t1  (id, age, name) values (5, 5, 'zwl')",
-					"insert into t1  (id, age, name) values (6, 20, 'dm')",
+					"insert into `t1` (id, age, name) values (5, 5, 'zwl')",
+					"insert into `t1` (id, age, name) values (6, 20, 'dm')",
 				}
 				for _, sql := range db2InsertSql {
 					_, err := ms.db02.ExecContext(context.Background(), sql)
 					require.NoError(ms.T(), err)
 				}
 				db3InsertSql := []string{
-					"insert into t1  (id, name) values (7, 'xq')",
-					"insert into t1  (id, age) values (8, 5)",
-					"insert into t1  (id, age,name) values (9, 10,'xx')",
+					"Insert into `t1` (`id`, `name`) values (7, 'xq')",
+					"insert into `t1` (`id`, `age`) values (8, 5)",
+					"INSERT INTO `t1` (`id`, `age`,`name`) VALUES (9, 10,'xx')",
 				}
 				for _, sql := range db3InsertSql {
 					_, err := ms.db03.ExecContext(context.Background(), sql)
@@ -1435,7 +1568,7 @@ func (ms *NullableMergerSuite) TestRows_Nullable() {
 				}
 				dbs := []*sql.DB{ms.db01, ms.db02, ms.db03}
 				rowsList := make([]rows.Rows, 0, len(dbs))
-				query := "SELECT `id`, `age`,`name` FROM `t1` order by age asc,name desc"
+				query := "SELECT `id`, `age`,`name` FROM `t1` ORDER BY `age`,`name` DESC"
 				for _, db := range dbs {
 					rows, err := db.QueryContext(context.Background(), query)
 					require.NoError(ms.T(), err)
@@ -1443,14 +1576,20 @@ func (ms *NullableMergerSuite) TestRows_Nullable() {
 				}
 				return rowsList
 			},
-			sortColumns: []SortColumn{
-				NewSortColumn("age", ASC),
-				NewSortColumn("name", DESC),
+			sortColumns: []merger.ColumnInfo{
+				{
+					Name:  "age",
+					Order: merger.OrderASC,
+				},
+				{
+					Name:  "name",
+					Order: merger.OrderDESC,
+				},
 			},
 			afterFunc: func() {
 				dbs := []*sql.DB{ms.db01, ms.db02, ms.db03}
 				for _, db := range dbs {
-					_, err := db.Exec("DELETE FROM t1;")
+					_, err := db.Exec("DELETE FROM `t1`;")
 					require.NoError(ms.T(), err)
 				}
 			},

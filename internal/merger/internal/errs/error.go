@@ -31,6 +31,12 @@ var (
 	ErrMergerInvalidAggregateColumnIndex = errors.New("merger: ColumnInfo的index不合法")
 	ErrMergerAggregateFuncNotFound       = errors.New("merger: 聚合函数方法未找到")
 	ErrMergerNotFound                    = errors.New("merger: merger未找到")
+
+	ErrDistinctColsRepeated             = errors.New("merger: 去重列重复")
+	ErrSortColListNotContainDistinctCol = errors.New("merger: 排序列里面不包含去重列")
+	ErrDistinctColsNotInCols            = errors.New("merger：去重列不在数据库字段集合里面")
+	ErrDistinctColsIsNull               = errors.New("merger：去重列为空")
+	ErrDistinctMultiSortCols            = errors.New("merger：传入多组SortCols")
 )
 
 func NewRepeatSortColumn(column string) error {

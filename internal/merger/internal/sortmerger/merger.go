@@ -23,6 +23,8 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/ecodeclub/eorm/internal/merger"
+	heap2 "github.com/ecodeclub/eorm/internal/merger/internal/sortmerger/heap"
 	"github.com/ecodeclub/eorm/internal/rows"
 
 	"go.uber.org/multierr"
@@ -30,64 +32,17 @@ import (
 	"github.com/ecodeclub/eorm/internal/merger/internal/errs"
 )
 
-type Order bool
-
-const (
-	// ASC 升序排序
-	ASC Order = true
-	// DESC 降序排序
-	DESC Order = false
-)
-
-type Ordered interface {
-	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~float32 | ~float64 | ~string
-}
-
-type SortColumn struct {
-	name  string
-	order Order
-}
-
-func NewSortColumn(colName string, order Order) SortColumn {
-	return SortColumn{
-		name:  colName,
-		order: order,
-	}
-}
-
-type sortColumns struct {
-	columns []SortColumn
-	colMap  map[string]int
-}
-
-func (s sortColumns) Has(name string) bool {
-	_, ok := s.colMap[name]
-	return ok
-}
-
-func (s sortColumns) Find(name string) int {
-	return s.colMap[name]
-}
-
-func (s sortColumns) Get(index int) SortColumn {
-	return s.columns[index]
-}
-
-func (s sortColumns) Len() int {
-	return len(s.columns)
-}
-
 // Merger  如果有GroupBy子句，会导致排序是给每个分组排的，那么该实现无法运作正常
 type Merger struct {
-	sortColumns
-	cols       []string
-	preScanAll bool
+	sortColumns merger.SortColumns
+	cols        []string
+	preScanAll  bool
 }
 
 // NewMerger 根据preScanAll及排序列的列信息来创建一个排序Merger
 // 其中preScanAll为true 表示需要预先扫描出结果集中的所有数据到内存才能得到正确结果,为false每次只需要扫描一行即可得到正确结果
-func NewMerger(preScanAll bool, sortCols ...SortColumn) (*Merger, error) {
-	scs, err := newSortColumns(sortCols...)
+func NewMerger(preScanAll bool, sortCols ...merger.ColumnInfo) (*Merger, error) {
+	scs, err := merger.NewSortColumns(sortCols...)
 	if err != nil {
 		return nil, err
 	}
@@ -95,24 +50,6 @@ func NewMerger(preScanAll bool, sortCols ...SortColumn) (*Merger, error) {
 		preScanAll:  preScanAll,
 		sortColumns: scs,
 	}, nil
-}
-
-func newSortColumns(sortCols ...SortColumn) (sortColumns, error) {
-	if len(sortCols) == 0 {
-		return sortColumns{}, errs.ErrEmptySortColumns
-	}
-	sortMap := make(map[string]int, len(sortCols))
-	for idx, sortCol := range sortCols {
-		if _, ok := sortMap[sortCol.name]; ok {
-			return sortColumns{}, errs.NewRepeatSortColumn(sortCol.name)
-		}
-		sortMap[sortCol.name] = idx
-	}
-	scs := sortColumns{
-		columns: sortCols,
-		colMap:  sortMap,
-	}
-	return scs, nil
 }
 
 func (m *Merger) Merge(ctx context.Context, results []rows.Rows) (rows.Rows, error) {
@@ -142,11 +79,7 @@ func (m *Merger) initRows(results []rows.Rows) (*Rows, error) {
 		columns:      m.cols,
 		isPreScanAll: m.preScanAll,
 	}
-	h := &Heap{
-		h:           make([]*node, 0, len(rs.rowsList)),
-		sortColumns: rs.sortColumns,
-	}
-	rs.hp = h
+	rs.hp = heap2.NewHeap(make([]*heap2.Node, 0, len(rs.rowsList)), rs.sortColumns)
 	var err error
 	// 下方preScanAll会把rowsList中所有数据扫描到内存然后关闭其中所有rows.Rows,所以要提前缓存住列类型信息
 	columnTypes, err := rs.rowsList[0].ColumnTypes()
@@ -190,16 +123,16 @@ func (m *Merger) checkColumns(rows rows.Rows) error {
 		colMap[colName] = struct{}{}
 	}
 
-	for _, sortColumn := range m.sortColumns.columns {
-		_, ok := colMap[sortColumn.name]
+	for _, sortColumn := range m.sortColumns.Cols() {
+		_, ok := colMap[sortColumn.SelectName()]
 		if !ok {
-			return errs.NewInvalidSortColumn(sortColumn.name)
+			return errs.NewInvalidSortColumn(sortColumn.SelectName())
 		}
 	}
 	return nil
 }
 
-func newNode(row rows.Rows, sortCols sortColumns, index int) (*node, error) {
+func newNode(row rows.Rows, sortCols merger.SortColumns, index int) (*heap2.Node, error) {
 	colsInfo, err := row.ColumnTypes()
 	fmt.Printf("row err = %#v\n", err)
 	if err != nil {
@@ -233,19 +166,19 @@ func newNode(row rows.Rows, sortCols sortColumns, index int) (*node, error) {
 		columns[i] = reflect.ValueOf(columns[i]).Elem().Interface()
 	}
 	log.Printf("sortColumns = %#v, columns = %#v\n", sortColumns, columns)
-	return &node{
-		sortCols: sortColumns,
-		columns:  columns,
-		index:    index,
+	return &heap2.Node{
+		Index:    index,
+		SortCols: sortColumns,
+		Columns:  columns,
 	}, nil
 }
 
 type Rows struct {
 	rowsList     []rows.Rows
 	columnTypes  []*sql.ColumnType
-	sortColumns  sortColumns
-	hp           *Heap
-	cur          *node
+	sortColumns  merger.SortColumns
+	hp           *heap2.Heap
+	cur          *heap2.Node
 	mu           *sync.RWMutex
 	lastErr      error
 	closed       bool
@@ -277,10 +210,10 @@ func (r *Rows) Next() bool {
 		_ = r.Close()
 		return false
 	}
-	r.cur = heap.Pop(r.hp).(*node)
+	r.cur = heap.Pop(r.hp).(*heap2.Node)
 	if !r.isPreScanAll {
-		row := r.rowsList[r.cur.index]
-		err := r.preScanOne(row, r.cur.index)
+		row := r.rowsList[r.cur.Index]
+		err := r.preScanOne(row, r.cur.Index)
 		if err != nil {
 			r.lastErr = err
 			r.mu.Unlock()
@@ -318,7 +251,6 @@ func (r *Rows) preScanOne(row rows.Rows, index int) error {
 }
 
 func (r *Rows) Scan(dest ...any) error {
-	log.Printf("Scan .......")
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.lastErr != nil {
@@ -332,7 +264,7 @@ func (r *Rows) Scan(dest ...any) error {
 	}
 	var err error
 	for i := 0; i < len(dest); i++ {
-		err = rows.ConvertAssign(dest[i], r.cur.columns[i])
+		err = rows.ConvertAssign(dest[i], r.cur.Columns[i])
 		if err != nil {
 			return err
 		}
