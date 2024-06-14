@@ -23,33 +23,33 @@ import (
 )
 
 type Heap struct {
-	h           []*Node
+	nodes       []*Node
 	sortColumns merger.SortColumns
 }
 
 func NewHeap(h []*Node, sortColumns merger.SortColumns) *Heap {
-	hp := &Heap{h: h, sortColumns: sortColumns}
+	hp := &Heap{nodes: h, sortColumns: sortColumns}
 	heap.Init(hp)
 	return hp
 }
 
 func (h *Heap) Len() int {
-	return len(h.h)
+	return len(h.nodes)
 }
 
 func (h *Heap) Less(i, j int) bool {
 	for k := 0; k < h.sortColumns.Len(); k++ {
-		valueI := h.h[i].SortCols[k]
-		valueJ := h.h[j].SortCols[k]
+		valueI := h.nodes[i].SortColumnValues[k]
+		valueJ := h.nodes[j].SortColumnValues[k]
 		_, ok := valueJ.(driver.Valuer)
-		var cp func(any, any, merger.Order) int
+		var cmp func(any, any, merger.Order) int
 		if ok {
-			cp = merger.CompareNullable
+			cmp = merger.CompareNullable
 		} else {
 			kind := reflect.TypeOf(valueI).Kind()
-			cp = merger.CompareFuncMapping[kind]
+			cmp = merger.CompareFuncMapping[kind]
 		}
-		res := cp(valueI, valueJ, h.sortColumns.Get(k).Order)
+		res := cmp(valueI, valueJ, h.sortColumns.Get(k).Order)
 		if res == 0 {
 			continue
 		}
@@ -62,21 +62,23 @@ func (h *Heap) Less(i, j int) bool {
 }
 
 func (h *Heap) Swap(i, j int) {
-	h.h[i], h.h[j] = h.h[j], h.h[i]
+	h.nodes[i], h.nodes[j] = h.nodes[j], h.nodes[i]
 }
 
 func (h *Heap) Push(x any) {
-	h.h = append(h.h, x.(*Node))
+	h.nodes = append(h.nodes, x.(*Node))
 }
 
 func (h *Heap) Pop() any {
-	v := h.h[len(h.h)-1]
-	h.h = h.h[:len(h.h)-1]
+	v := h.nodes[len(h.nodes)-1]
+	h.nodes = h.nodes[:len(h.nodes)-1]
 	return v
 }
 
 type Node struct {
-	Index    int
-	SortCols []any
-	Columns  []any
+	RowsListIndex int
+	// 用于排序列
+	SortColumnValues []any
+	// 完整的行中的所有列,不用于排序仅用于缓存行数据
+	ColumnValues []any
 }

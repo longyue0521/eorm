@@ -26,6 +26,7 @@ import (
 	"github.com/ecodeclub/eorm/internal/merger/internal/aggregatemerger"
 	"github.com/ecodeclub/eorm/internal/merger/internal/aggregatemerger/aggregator"
 	"github.com/ecodeclub/eorm/internal/merger/internal/batchmerger"
+	"github.com/ecodeclub/eorm/internal/merger/internal/distinctmerger"
 	"github.com/ecodeclub/eorm/internal/merger/internal/groupbymerger"
 	"github.com/ecodeclub/eorm/internal/merger/internal/pagedmerger"
 	"github.com/ecodeclub/eorm/internal/merger/internal/sortmerger"
@@ -39,6 +40,7 @@ var (
 	ErrColumnNotFoundInSelectList = errors.New("factory: Select列表中未找到列")
 	ErrInvalidLimit               = errors.New("factory: Limit小于1")
 	ErrInvalidOffset              = errors.New("factory: Offset不等于0")
+	ErrInvalidFeatures            = errors.New("factory: Features非法")
 )
 
 type (
@@ -62,11 +64,19 @@ type (
 
 func (q QuerySpec) Validate() error {
 
+	if err := q.validateFeatures(); err != nil {
+		return err
+	}
+
 	if err := q.validateSelect(); err != nil {
 		return err
 	}
 
 	if err := q.validateGroupBy(); err != nil {
+		return err
+	}
+
+	if err := q.validateDistinct(); err != nil {
 		return err
 	}
 
@@ -78,6 +88,23 @@ func (q QuerySpec) Validate() error {
 		return err
 	}
 
+	return nil
+}
+
+func (q QuerySpec) validateFeatures() error {
+	for i, v := range q.Features {
+		if i > 0 {
+			if v < q.Features[i-1] {
+				return fmt.Errorf("%w: 顺序错误", ErrInvalidFeatures)
+			}
+		}
+	}
+	if slice.Contains(q.Features, query.AggregateFunc) && slice.Contains(q.Features, query.GroupBy) {
+		return fmt.Errorf("%w: 聚合特征与GroupBy不该同时出现", ErrInvalidFeatures)
+	}
+	if slice.Contains(q.Features, query.GroupBy) && slice.Contains(q.Features, query.Distinct) {
+		return fmt.Errorf("%w: GroupBy与DISTINCT不该同时出现", ErrInvalidFeatures)
+	}
 	return nil
 }
 
@@ -121,6 +148,23 @@ func (q QuerySpec) validateGroupBy() error {
 	return nil
 }
 
+func (q QuerySpec) validateDistinct() error {
+	if !slice.Contains(q.Features, query.Distinct) {
+		return nil
+	}
+	// case 1
+	if len(q.Select) == 0 {
+		return fmt.Errorf("%w: select distinct", ErrEmptyColumnList)
+	}
+	for _, c := range q.Select {
+		// case2,3
+		if !c.Distinct || !c.Validate() {
+			return fmt.Errorf("%w: distinct %v", ErrInvalidColumnInfo, c.Name)
+		}
+	}
+	return nil
+}
+
 func (q QuerySpec) validateOrderBy() error {
 	if !slice.Contains(q.Features, query.OrderBy) {
 		return nil
@@ -133,9 +177,10 @@ func (q QuerySpec) validateOrderBy() error {
 		if !c.Validate() {
 			return fmt.Errorf("%w: orderby %v", ErrInvalidColumnInfo, c.Name)
 		}
-		// 清除ASC
-		c.Order = merger.OrderDESC
-		if !slice.Contains(q.Select, c) {
+		_, ok := slice.Find(q.Select, func(src merger.ColumnInfo) bool {
+			return src.Index == c.Index && src.SelectName() == c.SelectName()
+		})
+		if !ok {
 			return fmt.Errorf("%w: orderby %v", ErrColumnNotFoundInSelectList, c.Name)
 		}
 	}
@@ -196,6 +241,18 @@ func newGroupByMergerWithoutHaving(origin, target QuerySpec) (merger.Merger, err
 	return groupbymerger.NewAggregatorMerger(aggregators, target.GroupBy), nil
 }
 
+func newDistinctMerger(_, target QuerySpec) (merger.Merger, error) {
+	var sortColumns merger.SortColumns
+	if len(target.OrderBy) != 0 {
+		s, err := merger.NewSortColumns(target.OrderBy...)
+		if err != nil {
+			return nil, err
+		}
+		sortColumns = s
+	}
+	return distinctmerger.NewDistinctMerger(target.Select, sortColumns)
+}
+
 func newOrderByMerger(origin, target QuerySpec) (merger.Merger, error) {
 	var columns []merger.ColumnInfo
 	for i := 0; i < len(target.OrderBy); i++ {
@@ -226,12 +283,13 @@ func New(origin, target QuerySpec) (merger.Merger, error) {
 	var mp = map[query.Feature]newMergerFunc{
 		query.AggregateFunc: newAggregateMerger,
 		query.GroupBy:       newGroupByMergerWithoutHaving,
+		query.Distinct:      newDistinctMerger,
 		query.OrderBy:       newOrderByMerger,
 	}
 	var mergers []merger.Merger
 	for _, feature := range target.Features {
 		switch feature {
-		case query.AggregateFunc, query.GroupBy, query.OrderBy:
+		case query.AggregateFunc, query.GroupBy, query.Distinct, query.OrderBy:
 			m, err := mp[feature](origin, target)
 			if err != nil {
 				return nil, err
@@ -250,6 +308,8 @@ func New(origin, target QuerySpec) (merger.Merger, error) {
 				return nil, err
 			}
 			mergers = append(mergers, m)
+		default:
+			return nil, fmt.Errorf("%w: feature: %d", ErrInvalidFeatures, feature)
 		}
 	}
 	if len(mergers) == 0 {

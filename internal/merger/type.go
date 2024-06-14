@@ -51,6 +51,7 @@ type ColumnInfo struct {
 	AggregateFunc string
 	Alias         string
 	Order         Order
+	Distinct      bool
 }
 
 func (c ColumnInfo) SelectName() string {
@@ -135,45 +136,59 @@ var CompareFuncMapping = map[reflect.Kind]func(any, any, Order) int{
 }
 
 type SortColumns struct {
-	columns    []ColumnInfo
-	nameIdxMap map[string]int
+	columns        []ColumnInfo
+	selectName2Idx map[string]int
 }
 
 func NewSortColumns(sortCols ...ColumnInfo) (SortColumns, error) {
 	if len(sortCols) == 0 {
 		return SortColumns{}, errs.ErrEmptySortColumns
 	}
-	sortMap := make(map[string]int, len(sortCols))
-	for idx, sortCol := range sortCols {
-		if _, ok := sortMap[sortCol.SelectName()]; ok {
-			return SortColumns{}, errs.NewRepeatSortColumn(sortCol.SelectName())
-		}
-		sortMap[sortCol.SelectName()] = idx
+	s := SortColumns{
+		columns:        make([]ColumnInfo, 0, len(sortCols)),
+		selectName2Idx: make(map[string]int, len(sortCols)),
 	}
-	return SortColumns{columns: sortCols, nameIdxMap: sortMap}, nil
+	// 这里索引表示的是排序列列表中的索引,而不是ColumnInfo中的Index(Index是SELECT列表中的顺序)
+	for _, sortCol := range sortCols {
+		name := sortCol.SelectName()
+		if s.Has(name) {
+			return SortColumns{}, errs.NewRepeatSortColumn(name)
+		}
+		s.Add(sortCol)
+	}
+	return s, nil
 }
 
-func (s SortColumns) Has(name string) bool {
-	_, ok := s.nameIdxMap[name]
+func (s *SortColumns) Has(name string) bool {
+	_, ok := s.selectName2Idx[name]
 	return ok
 }
 
-func (s SortColumns) Find(name string) int {
-	return s.nameIdxMap[name]
+func (s *SortColumns) Add(column ColumnInfo) {
+	name := column.SelectName()
+	index := s.Len()
+	if !s.Has(name) {
+		s.columns = append(s.columns, column)
+		s.selectName2Idx[name] = index
+	}
 }
 
-func (s SortColumns) Get(index int) ColumnInfo {
+func (s *SortColumns) Find(name string) int {
+	return s.selectName2Idx[name]
+}
+
+func (s *SortColumns) Get(index int) ColumnInfo {
 	return s.columns[index]
 }
 
-func (s SortColumns) Len() int {
+func (s *SortColumns) Len() int {
 	return len(s.columns)
 }
 
-func (s SortColumns) Cols() []ColumnInfo {
+func (s *SortColumns) Cols() []ColumnInfo {
 	return s.columns
 }
 
-func (s SortColumns) IsZeroValue() bool {
-	return s.columns == nil && s.nameIdxMap == nil
+func (s *SortColumns) IsZeroValue() bool {
+	return s.columns == nil && s.selectName2Idx == nil
 }

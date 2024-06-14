@@ -25,21 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestHp(nodes []*Node, columns merger.SortColumns) *Heap {
-	h := &Heap{
-		sortColumns: columns,
-	}
-	for _, node := range nodes {
-		heap.Push(h, node)
-	}
-	return h
-}
-
 func newTestNodes(sortColsList [][]any) []*Node {
 	res := make([]*Node, 0, len(sortColsList))
 	for _, sortCols := range sortColsList {
 		n := &Node{
-			SortCols: sortCols,
+			SortColumnValues: sortCols,
 		}
 		res = append(res, n)
 	}
@@ -74,10 +64,10 @@ func TestHeap(t *testing.T) {
 				})
 			},
 			sortCols: func() merger.SortColumns {
-				sortCols, err := merger.NewSortColumns([]merger.ColumnInfo{{
+				sortCols, err := merger.NewSortColumns(merger.ColumnInfo{
 					Name:  "id",
 					Order: merger.OrderASC,
-				}}...)
+				})
 				require.NoError(t, err)
 				return sortCols
 			},
@@ -444,7 +434,7 @@ func TestHeap(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			h := newTestHp(tc.nodes(), tc.sortCols())
+			h := NewHeap(tc.nodes(), tc.sortCols())
 			res := make([]*Node, 0, h.Len())
 			for h.Len() > 0 {
 				res = append(res, heap.Pop(h).(*Node))
@@ -952,7 +942,7 @@ func TestHeap_Nullable(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			h := newTestHp(tc.nodes(), tc.sortCols())
+			h := NewHeap(tc.nodes(), tc.sortCols())
 			res := make([]*Node, 0, h.Len())
 			for h.Len() > 0 {
 				res = append(res, heap.Pop(h).(*Node))

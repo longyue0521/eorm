@@ -32,6 +32,7 @@ type Feature int
 const (
 	AggregateFunc Feature = 1 << iota
 	GroupBy
+	Distinct
 	OrderBy
 	Limit
 )

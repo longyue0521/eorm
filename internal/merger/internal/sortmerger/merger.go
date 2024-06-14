@@ -167,9 +167,9 @@ func newNode(row rows.Rows, sortCols merger.SortColumns, index int) (*heap2.Node
 	}
 	log.Printf("sortColumns = %#v, columns = %#v\n", sortColumns, columns)
 	return &heap2.Node{
-		Index:    index,
-		SortCols: sortColumns,
-		Columns:  columns,
+		RowsListIndex:    index,
+		SortColumnValues: sortColumns,
+		ColumnValues:     columns,
 	}, nil
 }
 
@@ -212,8 +212,8 @@ func (r *Rows) Next() bool {
 	}
 	r.cur = heap.Pop(r.hp).(*heap2.Node)
 	if !r.isPreScanAll {
-		row := r.rowsList[r.cur.Index]
-		err := r.preScanOne(row, r.cur.Index)
+		row := r.rowsList[r.cur.RowsListIndex]
+		err := r.preScanOne(row, r.cur.RowsListIndex)
 		if err != nil {
 			r.lastErr = err
 			r.mu.Unlock()
@@ -264,7 +264,7 @@ func (r *Rows) Scan(dest ...any) error {
 	}
 	var err error
 	for i := 0; i < len(dest); i++ {
-		err = rows.ConvertAssign(dest[i], r.cur.Columns[i])
+		err = rows.ConvertAssign(dest[i], r.cur.ColumnValues[i])
 		if err != nil {
 			return err
 		}

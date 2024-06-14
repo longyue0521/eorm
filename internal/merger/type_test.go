@@ -384,3 +384,11 @@ func TestCompare(t *testing.T) {
 		})
 	}
 }
+
+func TestSortColumns(t *testing.T) {
+
+	t.Run("零值", func(t *testing.T) {
+		s := SortColumns{}
+		require.True(t, s.IsZeroValue())
+	})
+}
