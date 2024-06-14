@@ -723,12 +723,6 @@ func (ms *MergerSuite) TestRows_NextAndScan() {
 			sqlRows: func() []rows.Rows {
 				cols := []string{"id", "name", "address"}
 				query := "SELECT * FROM `t1`"
-				// 1, "abel", "cn"
-				// 1, "alex", "cn"
-				// 1, "abel", "kn"
-				// 2, "alex", "cn"
-				// 2, "alex", "kn"
-				// 3, "alex", "cn"
 				ms.mock01.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(1, "abel", "cn").AddRow(1, "abel", "kn").AddRow(2, "alex", "cn"))
 				ms.mock02.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(1, "alex", "cn").AddRow(1, "abel", "cn").AddRow(2, "alex", "kn"))
 				ms.mock03.ExpectQuery(query).WillReturnRows(sqlmock.NewRows(cols).AddRow(2, "alex", "cn").AddRow(2, "alex", "kn").AddRow(3, "alex", "cn"))
