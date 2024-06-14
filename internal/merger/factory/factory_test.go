@@ -418,6 +418,43 @@ func (s *factoryTestSuite) TestSELECT() {
 		requireErrFunc require.ErrorAssertionFunc
 		after          func(t *testing.T, rows rows.Rows, expectedColumnNames []string)
 	}{
+		// Features
+		{
+			sql: "应该报错_组合时顺序错误",
+			before: func(t *testing.T, sql string) ([]rows.Rows, []string) {
+				return nil, nil
+			},
+			originSpec: QuerySpec{Features: []query.Feature{query.Limit, query.AggregateFunc}},
+			targetSpec: QuerySpec{Features: []query.Feature{query.Limit, query.AggregateFunc}},
+			requireErrFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrInvalidFeatures)
+			},
+			after: func(t *testing.T, r rows.Rows, cols []string) {},
+		},
+		{
+			sql: "应该报错_聚合与GroupBy组合使用",
+			before: func(t *testing.T, sql string) ([]rows.Rows, []string) {
+				return nil, nil
+			},
+			originSpec: QuerySpec{Features: []query.Feature{query.AggregateFunc, query.GroupBy}},
+			targetSpec: QuerySpec{Features: []query.Feature{query.AggregateFunc, query.GroupBy}},
+			requireErrFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrInvalidFeatures)
+			},
+			after: func(t *testing.T, r rows.Rows, cols []string) {},
+		},
+		{
+			sql: "应该报错_GroupBy与Distinct组合使用",
+			before: func(t *testing.T, sql string) ([]rows.Rows, []string) {
+				return nil, nil
+			},
+			originSpec: QuerySpec{Features: []query.Feature{query.GroupBy, query.Distinct}},
+			targetSpec: QuerySpec{Features: []query.Feature{query.GroupBy, query.Distinct}},
+			requireErrFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrInvalidFeatures)
+			},
+			after: func(t *testing.T, r rows.Rows, cols []string) {},
+		},
 		// SELECT
 		{
 			sql: "应该报错_QuerySpec.Select列为空",
@@ -725,6 +762,46 @@ func (s *factoryTestSuite) TestSELECT() {
 			},
 			requireErrFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, ErrEmptyColumnList)
+			},
+			after: func(t *testing.T, r rows.Rows, cols []string) {},
+		},
+		{
+			sql: "应该报错_QuerySpec.OrderBy中有非法列_列名包含聚合函数",
+			before: func(t *testing.T, sql string) ([]rows.Rows, []string) {
+				return nil, nil
+			},
+			originSpec: QuerySpec{
+				Features: []query.Feature{query.OrderBy},
+				Select: []merger.ColumnInfo{
+					{
+						Index: 0,
+						Name:  "`ctime`",
+					},
+				},
+				OrderBy: []merger.ColumnInfo{
+					{
+						Index: 0,
+						Name:  "AVG(`amount`)",
+					},
+				},
+			},
+			targetSpec: QuerySpec{
+				Features: []query.Feature{query.OrderBy},
+				Select: []merger.ColumnInfo{
+					{
+						Index: 0,
+						Name:  "`ctime`",
+					},
+				},
+				OrderBy: []merger.ColumnInfo{
+					{
+						Index: 0,
+						Name:  "AVG(`amount`)",
+					},
+				},
+			},
+			requireErrFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrInvalidColumnInfo)
 			},
 			after: func(t *testing.T, r rows.Rows, cols []string) {},
 		},
@@ -1676,6 +1753,34 @@ func (s *factoryTestSuite) TestSELECT() {
 			},
 		},
 		// DISTINCT
+		{
+			sql: "应该报错_QuerySpec.Select_DISTINCT_中有非法列_未设置DISTINCT字段",
+			before: func(t *testing.T, sql string) ([]rows.Rows, []string) {
+				return nil, nil
+			},
+			originSpec: QuerySpec{
+				Features: []query.Feature{query.Distinct},
+				Select: []merger.ColumnInfo{
+					{
+						Index: 0,
+						Name:  "`amount`",
+					},
+				},
+			},
+			targetSpec: QuerySpec{
+				Features: []query.Feature{query.Distinct},
+				Select: []merger.ColumnInfo{
+					{
+						Index: 0,
+						Name:  "`amount`",
+					},
+				},
+			},
+			requireErrFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrInvalidColumnInfo)
+			},
+			after: func(t *testing.T, r rows.Rows, cols []string) {},
+		},
 		// 假设: ORDER BY中列一定会出现在SELECT列表中
 		// 规范: SQL中要求SELECT DISTINCT 必须作用于整个列表,不能出现 SELECT `user_id` DISTINCT `amount` FROM `orders`;
 		// 综合上面两条, DISTINCT 与 ORDER BY 组合时, ORDER BY的列列表是SELECT列列表的子集

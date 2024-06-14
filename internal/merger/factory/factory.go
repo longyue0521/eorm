@@ -152,10 +152,7 @@ func (q QuerySpec) validateDistinct() error {
 	if !slice.Contains(q.Features, query.Distinct) {
 		return nil
 	}
-	// case 1
-	if len(q.Select) == 0 {
-		return fmt.Errorf("%w: select distinct", ErrEmptyColumnList)
-	}
+	// 程序走到这q.Select的长度至少为1
 	for _, c := range q.Select {
 		// case2,3
 		if !c.Distinct || !c.Validate() {
