@@ -748,58 +748,58 @@ func TestHeap_Nullable(t *testing.T) {
 			nodes: func() []*Node {
 				return newTestNodes([][]any{
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-02 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-02 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-09 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-09 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 11:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 11:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-20 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-20 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: false}},
 				})
 			},
 			wantNodes: func() []*Node {
 				return newTestNodes([][]any{
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-20 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-20 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: false}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 11:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 11:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-02 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-02 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-09 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-09 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 				})
 			},
@@ -817,58 +817,58 @@ func TestHeap_Nullable(t *testing.T) {
 			nodes: func() []*Node {
 				return newTestNodes([][]any{
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-02 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-02 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-09 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-09 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 11:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 11:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-20 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-20 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: false}},
 				})
 			},
 			wantNodes: func() []*Node {
 				return newTestNodes([][]any{
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-09 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-09 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-02 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-02 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 11:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-01 11:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: true}},
 					{sql.NullTime{Time: func() time.Time {
-						time, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-20 12:00:00", time.Local)
+						tm, err := time.ParseInLocation("2006-01-02 15:04:05", "2022-01-20 12:00:00", time.Local)
 						require.NoError(t, err)
-						return time
+						return tm
 					}(), Valid: false}},
 				})
 			},

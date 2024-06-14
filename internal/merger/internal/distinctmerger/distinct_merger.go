@@ -36,7 +36,6 @@ type treeMapKey struct {
 	sortValues  []any
 	values      []any
 	sortColumns merger.SortColumns
-	visited     bool
 }
 
 func (k treeMapKey) isZeroValue() bool {
