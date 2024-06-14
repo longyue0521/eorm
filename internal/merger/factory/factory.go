@@ -92,10 +92,11 @@ func (q QuerySpec) Validate() error {
 
 func (q QuerySpec) validateFeatures() error {
 	for i, v := range q.Features {
-		if i > 0 {
-			if v < q.Features[i-1] {
-				return fmt.Errorf("%w: 顺序错误", ErrInvalidFeatures)
-			}
+		if i == 0 {
+			continue
+		}
+		if v < q.Features[i-1] {
+			return fmt.Errorf("%w: 顺序错误", ErrInvalidFeatures)
 		}
 	}
 	if slice.Contains(q.Features, query.AggregateFunc) && slice.Contains(q.Features, query.GroupBy) {
