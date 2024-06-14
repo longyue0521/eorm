@@ -250,7 +250,7 @@ func newDistinctMerger(_, target QuerySpec) (merger.Merger, error) {
 		}
 		sortColumns = s
 	}
-	return distinctmerger.NewDistinctMerger(target.Select, sortColumns)
+	return distinctmerger.NewMerger(target.Select, sortColumns)
 }
 
 func newOrderByMerger(origin, target QuerySpec) (merger.Merger, error) {

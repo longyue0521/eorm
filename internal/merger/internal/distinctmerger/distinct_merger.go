@@ -40,10 +40,10 @@ type Merger struct {
 	columnNames []string
 }
 
-func NewDistinctMerger(distinctCols []merger.ColumnInfo, sortColumns merger.SortColumns) (*Merger, error) {
+func NewMerger(distinctCols []merger.ColumnInfo, sortColumns merger.SortColumns) (*Merger, error) {
 
 	if len(distinctCols) == 0 {
-		return nil, errs.ErrDistinctColsIsNull
+		return nil, fmt.Errorf("%w", errs.ErrDistinctColsIsNull)
 	}
 
 	if sortColumns.IsZeroValue() {
@@ -65,7 +65,7 @@ func NewDistinctMerger(distinctCols []merger.ColumnInfo, sortColumns merger.Sort
 		name := col.SelectName()
 		_, ok := distinctSet[name]
 		if ok {
-			return nil, errs.ErrDistinctColsRepeated
+			return nil, fmt.Errorf("%w", errs.ErrDistinctColsRepeated)
 		} else {
 			distinctSet[name] = struct{}{}
 		}
@@ -78,7 +78,7 @@ func NewDistinctMerger(distinctCols []merger.ColumnInfo, sortColumns merger.Sort
 	for i := 0; i < sortColumns.Len(); i++ {
 		val := sortColumns.Get(i)
 		if _, ok := distinctSet[val.SelectName()]; !ok {
-			return nil, errs.ErrSortColListNotContainDistinctCol
+			return nil, fmt.Errorf("%w", errs.ErrSortColListNotContainDistinctCol)
 		}
 	}
 	return &Merger{
@@ -109,6 +109,7 @@ func (m *Merger) Merge(ctx context.Context, results []rows.Rows) (rows.Rows, err
 	}
 	return m.initRows(results)
 }
+
 func (m *Merger) checkColumns(rows rows.Rows) error {
 	if rows == nil {
 		return errs.ErrMergerRowsIsNull

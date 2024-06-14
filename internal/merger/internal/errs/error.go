@@ -33,7 +33,7 @@ var (
 	ErrMergerNotFound                    = errors.New("merger: merger未找到")
 
 	ErrDistinctColsRepeated             = errors.New("merger: 去重列重复")
-	ErrSortColListNotContainDistinctCol = errors.New("merger: 排序列里面不包含去重列")
+	ErrSortColListNotContainDistinctCol = errors.New("merger: 排序列里包含不在去重列表中的列")
 	ErrDistinctColsNotInCols            = errors.New("merger：去重列不在数据库字段集合里面")
 	ErrDistinctColsIsNull               = errors.New("merger：去重列为空")
 	ErrDistinctMultiSortCols            = errors.New("merger：传入多组SortCols")
