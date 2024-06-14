@@ -2471,9 +2471,9 @@ func (s *factoryTestSuite) TestSELECT() {
 				targetSQL := sql
 				cols := []string{"`amt`", "`name`", "`date`"}
 
-				s.mock01.ExpectQuery(targetSQL).WillReturnRows(sqlmock.NewRows(cols).AddRow(300, "alex", 10000).AddRow(200, "alex", 20000).AddRow(100, "alex", 10000))
-				s.mock02.ExpectQuery(targetSQL).WillReturnRows(sqlmock.NewRows(cols).AddRow(200, "bob", 20000).AddRow(100, "curry", 30000))
-				s.mock03.ExpectQuery(targetSQL).WillReturnRows(sqlmock.NewRows(cols).AddRow(500, "alex", 10000).AddRow(300, "alex", 10000).AddRow(200, "bob", 20000).AddRow(100, "curry", 10000))
+				s.mock01.ExpectQuery(targetSQL).WillReturnRows(sqlmock.NewRows(cols).AddRow(200, "alex", 20000).AddRow(100, "alex", 10000).AddRow(300, "alex", 10000))
+				s.mock02.ExpectQuery(targetSQL).WillReturnRows(sqlmock.NewRows(cols).AddRow(100, "curry", 30000).AddRow(200, "bob", 20000))
+				s.mock03.ExpectQuery(targetSQL).WillReturnRows(sqlmock.NewRows(cols).AddRow(200, "bob", 20000).AddRow(100, "curry", 10000).AddRow(300, "alex", 10000).AddRow(500, "alex", 10000))
 				return getResultSet(t, targetSQL, s.db01, s.db02, s.db03), cols
 			},
 			originSpec: QuerySpec{

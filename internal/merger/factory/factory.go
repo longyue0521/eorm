@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/ecodeclub/ekit/slice"
@@ -201,7 +200,6 @@ func (q QuerySpec) validateLimit() error {
 
 func newAggregateMerger(origin, target QuerySpec) (merger.Merger, error) {
 	aggregators := getAggregators(origin, target)
-	log.Printf("aggregators = %#v\n", aggregators)
 	// TODO: 当aggs为空时, 报不相关的错 merger: scan之前需要调用Next
 	return aggregatemerger.NewMerger(aggregators...), nil
 }
@@ -213,20 +211,15 @@ func getAggregators(_, target QuerySpec) []aggregator.Aggregator {
 		switch strings.ToUpper(c.AggregateFunc) {
 		case "MIN":
 			aggregators = append(aggregators, aggregator.NewMin(c))
-			log.Printf("min index = %d\n", c.Index)
 		case "MAX":
 			aggregators = append(aggregators, aggregator.NewMax(c))
-			log.Printf("max index = %d\n", c.Index)
 		case "AVG":
 			aggregators = append(aggregators, aggregator.NewAVG(c, target.Select[i+1], target.Select[i+2]))
 			i += 2
-			log.Printf("avg index = %d\n", c.Index)
 		case "SUM":
 			aggregators = append(aggregators, aggregator.NewSum(c))
-			log.Printf("sum index = %d\n", c.Index)
 		case "COUNT":
 			aggregators = append(aggregators, aggregator.NewCount(c))
-			log.Printf("count index = %d\n", c.Index)
 		}
 	}
 	return aggregators
@@ -234,7 +227,6 @@ func getAggregators(_, target QuerySpec) []aggregator.Aggregator {
 
 func newGroupByMergerWithoutHaving(origin, target QuerySpec) (merger.Merger, error) {
 	aggregators := getAggregators(origin, target)
-	log.Printf("groupby aggregators = %#v\n", aggregators)
 	return groupbymerger.NewAggregatorMerger(aggregators, target.GroupBy), nil
 }
 
@@ -266,8 +258,6 @@ func newOrderByMerger(origin, target QuerySpec) (merger.Merger, error) {
 	if slice.Contains(target.Features, query.GroupBy) {
 		isPreScanAll = true
 	}
-
-	log.Printf("sortColumns = %#v\n", columns)
 	return sortmerger.NewMerger(isPreScanAll, columns...)
 }
 
@@ -312,7 +302,6 @@ func New(origin, target QuerySpec) (merger.Merger, error) {
 	if len(mergers) == 0 {
 		mergers = append(mergers, batchmerger.NewMerger())
 	}
-	log.Printf("mergers = %#v\n", mergers)
 	return &MergerPipeline{mergers: mergers}, nil
 }
 
@@ -328,15 +317,11 @@ func (m *MergerPipeline) Merge(ctx context.Context, results []rows.Rows) (rows.R
 	if len(m.mergers) == 1 {
 		return r, nil
 	}
-	columns, _ := r.Columns()
-	log.Printf("pipline merge[0] columns = %#v\n", columns)
 	for _, mg := range m.mergers[1:] {
 		r, err = mg.Merge(ctx, []rows.Rows{r})
 		if err != nil {
 			return nil, err
 		}
-		c, _ := r.Columns()
-		log.Printf("pipline merge[1:] columns = %#v\n", c)
 	}
 	return r, nil
 }

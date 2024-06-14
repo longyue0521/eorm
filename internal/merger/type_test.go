@@ -1,8 +1,11 @@
 package merger
 
 import (
+	"database/sql"
+	"database/sql/driver"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -386,9 +389,180 @@ func TestCompare(t *testing.T) {
 }
 
 func TestSortColumns(t *testing.T) {
-
 	t.Run("零值", func(t *testing.T) {
 		s := SortColumns{}
 		require.True(t, s.IsZeroValue())
 	})
+}
+
+func TestCompareNullable(t *testing.T) {
+	tests := []struct {
+		name     string
+		i        driver.Valuer
+		j        driver.Valuer
+		order    Order
+		expected int
+	}{
+		{
+			name:     "IntASC",
+			i:        sql.NullInt64{Int64: 5, Valid: true},
+			j:        sql.NullInt64{Int64: 10, Valid: true},
+			order:    OrderASC,
+			expected: -1,
+		},
+		{
+			name:     "IntDESC",
+			i:        sql.NullInt64{Int64: 10, Valid: true},
+			j:        sql.NullInt64{Int64: 5, Valid: true},
+			order:    OrderDESC,
+			expected: -1,
+		},
+		{
+			name:     "FloatASC",
+			i:        sql.NullFloat64{Float64: 5.5, Valid: true},
+			j:        sql.NullFloat64{Float64: 5.5, Valid: true},
+			order:    OrderASC,
+			expected: 0,
+		},
+		{
+			name:     "StringASC",
+			i:        sql.NullString{String: "abc", Valid: true},
+			j:        sql.NullString{String: "xyz", Valid: true},
+			order:    OrderASC,
+			expected: -1,
+		},
+		{
+			name:     "StringDESC",
+			i:        sql.NullString{String: "xyz", Valid: true},
+			j:        sql.NullString{String: "abc", Valid: true},
+			order:    OrderDESC,
+			expected: -1,
+		},
+		{
+			name:     "both nil",
+			i:        sql.NullInt64{},
+			j:        sql.NullInt64{},
+			order:    OrderASC,
+			expected: 0,
+		},
+		{
+			name:     "i nil, j not nil, ASC",
+			i:        sql.NullInt64{},
+			j:        sql.NullInt64{Valid: true, Int64: 10},
+			order:    OrderASC,
+			expected: -1,
+		},
+		{
+			name:     "i nil, j not nil, DESC",
+			i:        sql.NullInt64{},
+			j:        sql.NullInt64{Valid: true, Int64: 10},
+			order:    OrderDESC,
+			expected: 1,
+		},
+		{
+			name:     "i not nil, j nil, ASC",
+			i:        sql.NullInt64{Valid: true, Int64: 10},
+			j:        sql.NullInt64{},
+			order:    OrderASC,
+			expected: 1,
+		},
+		{
+			name:     "i not nil, j nil, DESC",
+			i:        sql.NullInt64{Valid: true, Int64: 10},
+			j:        sql.NullInt64{},
+			order:    OrderDESC,
+			expected: -1,
+		},
+		{
+			name:     "i < j, ASC",
+			i:        sql.NullInt64{Valid: true, Int64: 5},
+			j:        sql.NullInt64{Valid: true, Int64: 10},
+			order:    OrderASC,
+			expected: -1,
+		},
+		{
+			name:     "i < j, DESC",
+			i:        sql.NullInt64{Valid: true, Int64: 5},
+			j:        sql.NullInt64{Valid: true, Int64: 10},
+			order:    OrderDESC,
+			expected: 1,
+		},
+		{
+			name:     "i > j, ASC",
+			i:        sql.NullInt64{Valid: true, Int64: 15},
+			j:        sql.NullInt64{Valid: true, Int64: 10},
+			order:    OrderASC,
+			expected: 1,
+		},
+		{
+			name:     "i > j, DESC",
+			i:        sql.NullInt64{Valid: true, Int64: 15},
+			j:        sql.NullInt64{Valid: true, Int64: 10},
+			order:    OrderDESC,
+			expected: -1,
+		},
+		{
+			name:     "i == j, ASC",
+			i:        sql.NullInt64{Valid: true, Int64: 10},
+			j:        sql.NullInt64{Valid: true, Int64: 10},
+			order:    OrderASC,
+			expected: 0,
+		},
+		{
+			name:     "i == j, DESC",
+			i:        sql.NullInt64{Valid: true, Int64: 10},
+			j:        sql.NullInt64{Valid: true, Int64: 10},
+			order:    OrderDESC,
+			expected: 0,
+		},
+		{
+			name:     "i time < j time, ASC",
+			i:        sql.NullTime{Valid: true, Time: time.Now()},
+			j:        sql.NullTime{Valid: true, Time: time.Now().Add(time.Hour)},
+			order:    OrderASC,
+			expected: -1,
+		},
+		{
+			name:     "i time < j time, DESC",
+			i:        sql.NullTime{Valid: true, Time: time.Now()},
+			j:        sql.NullTime{Valid: true, Time: time.Now().Add(time.Hour)},
+			order:    OrderDESC,
+			expected: 1,
+		},
+		{
+			name:     "i time > j time, ASC",
+			i:        sql.NullTime{Valid: true, Time: time.Now().Add(time.Hour)},
+			j:        sql.NullTime{Valid: true, Time: time.Now()},
+			order:    OrderASC,
+			expected: 1,
+		},
+		{
+			name:     "i time > j time, DESC",
+			i:        sql.NullTime{Valid: true, Time: time.Now().Add(time.Hour)},
+			j:        sql.NullTime{Valid: true, Time: time.Now()},
+			order:    OrderDESC,
+			expected: -1,
+		},
+		{
+			name:     "i time == j time, ASC",
+			i:        sql.NullTime{Valid: true, Time: time.Now()},
+			j:        sql.NullTime{Valid: true, Time: time.Now()},
+			order:    OrderASC,
+			expected: 0,
+		},
+		{
+			name:     "i time == j time, DESC",
+			i:        sql.NullTime{Valid: true, Time: time.Now()},
+			j:        sql.NullTime{Valid: true, Time: time.Now()},
+			order:    OrderDESC,
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CompareNullable(tt.i, tt.j, tt.order)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

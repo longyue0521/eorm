@@ -20,7 +20,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"log"
 	"reflect"
 	"sync"
 
@@ -32,6 +31,35 @@ import (
 	"github.com/ecodeclub/eorm/internal/rows"
 	"go.uber.org/multierr"
 )
+
+type treeMapKey struct {
+	sortValues  []any
+	values      []any
+	sortColumns merger.SortColumns
+	visited     bool
+}
+
+func (k treeMapKey) isZeroValue() bool {
+	return k.sortValues == nil && k.sortColumns.IsZeroValue()
+}
+
+func (k treeMapKey) compare(b treeMapKey) int {
+	keyLen := len(k.sortValues)
+	for i := 0; i < keyLen; i++ {
+		var cmp func(any, any, merger.Order) int
+		if _, ok := k.sortValues[i].(driver.Valuer); ok {
+			cmp = merger.CompareNullable
+		} else {
+			kind := reflect.TypeOf(k.sortValues[i]).Kind()
+			cmp = merger.CompareFuncMapping[kind]
+		}
+		res := cmp(k.sortValues[i], b.sortValues[i], k.sortColumns.Get(i).Order)
+		if res != 0 {
+			return res
+		}
+	}
+	return 0
+}
 
 type Merger struct {
 	sortColumns merger.SortColumns
@@ -60,6 +88,7 @@ func NewMerger(distinctCols []merger.ColumnInfo, sortColumns merger.SortColumns)
 	}
 
 	// 检查sortCols必须全在distinctCols
+	var preScanAll bool
 	distinctSet := make(map[string]struct{})
 	for _, col := range distinctCols {
 		name := col.SelectName()
@@ -69,8 +98,9 @@ func NewMerger(distinctCols []merger.ColumnInfo, sortColumns merger.SortColumns)
 		} else {
 			distinctSet[name] = struct{}{}
 		}
-		// 补充缺少的列
+		// 补充缺少的排序列,最终达到排序列表与DISTINCT列表相同的效果
 		if !sortColumns.Has(name) {
+			preScanAll = true
 			col.Order = merger.OrderASC
 			sortColumns.Add(col)
 		}
@@ -84,8 +114,7 @@ func NewMerger(distinctCols []merger.ColumnInfo, sortColumns merger.SortColumns)
 	return &Merger{
 		sortColumns: sortColumns,
 		columnInfos: distinctCols,
-		preScanAll:  true,
-		// preScanAll:  false,
+		preScanAll:  preScanAll,
 	}, nil
 }
 
@@ -122,7 +151,6 @@ func (m *Merger) checkColumns(rows rows.Rows) error {
 	if len(cols) != len(m.columnInfos) {
 		return errs.ErrDistinctColsNotInCols
 	}
-	fmt.Printf("columns = %#v\n", m.columnInfos)
 	for _, distinctColumn := range m.columnInfos {
 		if cols[distinctColumn.Index] != distinctColumn.SelectName() {
 			return errs.ErrDistinctColsNotInCols
@@ -165,170 +193,6 @@ func (m *Merger) initRows(results []rows.Rows) (*Rows, error) {
 	return r, nil
 }
 
-type treeMapKey struct {
-	sortValues  []any
-	values      []any
-	sortColumns merger.SortColumns
-}
-
-// func (k treeMapKey) isZeroValue() bool {
-// 	return k.sortValues == nil && k.sortColumns.IsZeroValue()
-// }
-
-func (k treeMapKey) compare(b treeMapKey) int {
-	keyLen := len(k.sortValues)
-	for i := 0; i < keyLen; i++ {
-		var cmp func(any, any, merger.Order) int
-		if _, ok := k.sortValues[i].(driver.Valuer); ok {
-			cmp = merger.CompareNullable
-		} else {
-			kind := reflect.TypeOf(k.sortValues[i]).Kind()
-			cmp = merger.CompareFuncMapping[kind]
-		}
-		res := cmp(k.sortValues[i], b.sortValues[i], k.sortColumns.Get(i).Order)
-		if res != 0 {
-			return res
-		}
-	}
-	return 0
-}
-
-// func compareKey(a, b treeMapKey) int {
-// 	keyLen := len(a.data)
-// 	for i := 0; i < keyLen; i++ {
-// 		var cmp func(any, any, merger.Order) int
-// 		if _, ok := a.data[i].(driver.Valuer); ok {
-// 			cmp = merger.CompareNullable
-// 		} else {
-// 			cmp = merger.CompareFuncMapping[reflect.TypeOf(a.data[i]).Kind()]
-// 		}
-// 		res := cmp(a.data[i], b.data[i], merger.OrderASC)
-// 		if res != 0 {
-// 			return res
-// 		}
-// 	}
-// 	return 0
-// }
-
-// // 初始化堆和map，保证至少有一个排序列相同的所有数据全部拿出。第一个返回值表示results还有没有值
-// func (o *Merger) initMapAndHeap(results []rows.Rows, t *mapx.TreeMap[treeMapKey, struct{}], h *heap2.Heap) error {
-//
-// 	// 初始化将所有sql.Rows的第一个元素塞进heap中
-// 	for i := 0; i < len(results); i++ {
-// 		if results[i].Next() {
-//
-// 			n, err := newDistinctNode(results[i], o.sortCols, i, o.hasOrderBy)
-// 			if err != nil {
-// 				return err
-// 			}
-// 			heap.Push(h, n)
-// 		} else if results[i].Err() != nil {
-// 			return results[i].Err()
-// 		}
-// 	}
-// 	// 如果四个results里面的元素均为空表示没有已经没有数据了
-//
-// 	_, err := deduplicate(results, t, o.sortCols, h, o.hasOrderBy)
-// 	return err
-// }
-//
-// func newDistinctNode(rows rows.Rows, sortCols merger.SortColumns, index int, hasOrderBy bool) (*heap2.Node, error) {
-// 	n, err := newNode(rows, sortCols, index)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if !hasOrderBy {
-// 		n.SortColumnValues = []any{1}
-// 	}
-// 	return n, nil
-// }
-//
-// func newNode(row rows.Rows, sortCols merger.SortColumns, index int) (*heap2.Node, error) {
-// 	colsInfo, err := row.ColumnTypes()
-// 	fmt.Printf("row err = %#v\n", err)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	columns := make([]any, 0, len(colsInfo))
-// 	sortColumns := make([]any, sortCols.Len())
-// 	log.Printf("sortColumns1 = %#v, len=%d\n", sortColumns, len(sortColumns))
-// 	for _, colInfo := range colsInfo {
-// 		colName := colInfo.Name()
-// 		colType := colInfo.ScanType()
-// 		for colType.Kind() == reflect.Ptr {
-// 			colType = colType.Elem()
-// 		}
-// 		log.Printf("colName = %s, colType = %s\n", colName, colType.String())
-// 		column := reflect.New(colType).Interface()
-// 		if sortCols.Has(colName) {
-// 			log.Printf("sortCols = %#v, colName = %s, colType = %s\n", sortCols, colName, colType.String())
-// 			sortIndex := sortCols.Find(colName)
-// 			sortColumns[sortIndex] = column
-// 		}
-// 		columns = append(columns, column)
-// 	}
-// 	err = row.Scan(columns...)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	log.Printf("sortColumns2 = %#v, len = %d\n", sortColumns, len(sortColumns))
-// 	for i := 0; i < len(sortColumns); i++ {
-// 		v := reflect.ValueOf(sortColumns[i])
-// 		if v.IsValid() && !v.IsZero() {
-// 			sortColumns[i] = v.Elem().Interface()
-// 		}
-// 	}
-// 	for i := 0; i < len(columns); i++ {
-// 		columns[i] = reflect.ValueOf(columns[i]).Elem().Interface()
-// 	}
-// 	log.Printf("sortColumns = %#v, columns = %#v\n", sortColumns, columns)
-// 	return &heap2.Node{
-// 		Index:            index,
-// 		SortColumnValues: sortColumns,
-// 		ColumnValues:     columns,
-// 	}, nil
-// }
-//
-// // 从heap中取出一个排序列的所有行，保存进treemap中
-// func deduplicate(results []rows.Rows, t *mapx.TreeMap[treeMapKey, struct{}], sortCols merger.SortColumns, h *heap2.Heap, hasOrderBy bool) (bool, error) {
-// 	var sortCol []any
-// 	if h.Len() == 0 {
-// 		return false, nil
-// 	}
-// 	for i := 0; ; i++ {
-// 		if h.Len() == 0 {
-// 			return false, nil
-// 		}
-// 		val := heap.Pop(h).(*heap2.Node)
-// 		if i == 0 {
-// 			sortCol = val.SortColumnValues
-// 		}
-// 		// 相同元素进入treemap
-// 		if compareKey(treeMapKey{val.SortColumnValues}, treeMapKey{sortCol}) == 0 {
-// 			err := t.Put(treeMapKey{val.ColumnValues}, struct{}{})
-// 			if err != nil {
-// 				return false, err
-// 			}
-// 			// 将后续元素加入heap
-// 			rr := results[val.Index]
-// 			if rr.Next() {
-// 				n, err := newDistinctNode(rr, sortCols, val.Index, hasOrderBy)
-// 				if err != nil {
-// 					return false, err
-// 				}
-// 				heap.Push(h, n)
-// 			} else if rr.Err() != nil {
-// 				return false, rr.Err()
-// 			}
-// 		} else {
-// 			// 如果排序列不相同将 拿出来的元素，重新塞进heap中
-// 			heap.Push(h, val)
-// 			return true, nil
-// 		}
-//
-// 	}
-// }
-
 // 初始化堆和map，保证至少有一个排序列相同的所有数据全部拿出。第一个返回值表示results还有没有值
 func (r *Rows) init() error {
 	// 初始化将所有sql.Rows的第一个元素塞进heap中
@@ -346,7 +210,6 @@ func (r *Rows) scanRowsIntoHeap() error {
 	for i := 0; i < len(r.rowsList); i++ {
 		if r.preScanAll {
 			err = r.preScanAllRows(i)
-
 		} else {
 			err = r.preScanOneRows(i)
 		}
@@ -386,23 +249,19 @@ func (r *Rows) preScanOneRows(idx int) error {
 
 func (r *Rows) newHeapNode(row rows.Rows, index int) (*heap2.Node, error) {
 	colsInfo, err := row.ColumnTypes()
-	fmt.Printf("row err = %#v\n", err)
 	if err != nil {
 		return nil, err
 	}
 	columnValues := make([]any, 0, len(colsInfo))
 	sortColumnValues := make([]any, r.sortColumns.Len())
-	log.Printf("sortColumns1 = %#v, len=%d\n", sortColumnValues, len(sortColumnValues))
 	for _, colInfo := range colsInfo {
 		colName := colInfo.Name()
 		colType := colInfo.ScanType()
 		for colType.Kind() == reflect.Ptr {
 			colType = colType.Elem()
 		}
-		log.Printf("colName = %s, colType = %s\n", colName, colType.String())
 		column := reflect.New(colType).Interface()
 		if r.sortColumns.Has(colName) {
-			log.Printf("sortCols = %#v, colName = %s, colType = %s\n", r.sortColumns, colName, colType.String())
 			sortIndex := r.sortColumns.Find(colName)
 			sortColumnValues[sortIndex] = column
 		}
@@ -412,7 +271,6 @@ func (r *Rows) newHeapNode(row rows.Rows, index int) (*heap2.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("sortColumns2 = %#v, len = %d\n", sortColumnValues, len(sortColumnValues))
 	for i := 0; i < len(sortColumnValues); i++ {
 		v := reflect.ValueOf(sortColumnValues[i])
 		if v.IsValid() && !v.IsZero() {
@@ -422,57 +280,25 @@ func (r *Rows) newHeapNode(row rows.Rows, index int) (*heap2.Node, error) {
 	for i := 0; i < len(columnValues); i++ {
 		columnValues[i] = reflect.ValueOf(columnValues[i]).Elem().Interface()
 	}
-	log.Printf("sortColumns = %#v, columns = %#v\n", sortColumnValues, columnValues)
 	node := &heap2.Node{
 		RowsListIndex:    index,
 		SortColumnValues: sortColumnValues,
 		ColumnValues:     columnValues,
 	}
-	fmt.Printf("heap node = %#v, preScanAll = %v\n", node, r.preScanAll)
-	// if !r.hasOrderBy {
-	// 	node.SortColumnValues = []any{1}
-	// }
 	return node, nil
 }
 
 func (r *Rows) deduplicate() (bool, error) {
-	// var prevKey treeMapKey
-	// // var sortCol []any
-	// if r.hp.Len() == 0 {
-	// 	return false, nil
-	// }
-	// for {
-	// 	if r.hp.Len() == 0 {
-	// 		return false, nil
-	// 	}
-	// 	node := heap.Pop(r.hp).(*heap2.Node)
-	// 	if prevKey.isZeroValue() {
-	// 		prevKey = treeMapKey{data: node.SortColumnValues}
-	// 	}
-	//
-	// 	// 相同元素进入treemap
-	// 	key := treeMapKey{data: node.SortColumnValues}
-	// 	if key.compare(prevKey) == 0 {
-	// 		err := r.treeMap.Put(key, struct{}{})
-	// 		if err != nil {
-	// 			return false, err
-	// 		}
-	// 		// 将后续元素加入heap
-	// 		err = r.preScanAllRows(node.RowsListIndex)
-	// 		if err != nil {
-	// 			return false, err
-	// 		}
-	// 	} else {
-	// 		// 如果排序列不相同将 拿出来的元素，重新塞进heap中
-	// 		heap.Push(r.hp, node)
-	// 		return true, nil
-	// 	}
-	// }
-	//
+	if r.preScanAll {
+		return r.deduplicateAll()
+	} else {
+		return r.deduplicatePart()
+	}
+}
+
+func (r *Rows) deduplicateAll() (bool, error) {
 	for r.hp.Len() > 0 {
 		node := heap.Pop(r.hp).(*heap2.Node)
-		fmt.Printf("Pop nodes = %#v\n", node)
-
 		key := treeMapKey{
 			sortValues:  node.SortColumnValues,
 			values:      node.ColumnValues,
@@ -484,6 +310,58 @@ func (r *Rows) deduplicate() (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (r *Rows) deduplicatePart() (bool, error) {
+	var prevKey treeMapKey
+	if r.hp.Len() == 0 {
+		return false, nil
+	}
+	var indexes []int
+
+	for {
+		if r.hp.Len() == 0 {
+			return r.preScanOneRowsByIndexes(indexes)
+		}
+		node := heap.Pop(r.hp).(*heap2.Node)
+		if prevKey.isZeroValue() {
+			prevKey = treeMapKey{
+				sortValues:  node.SortColumnValues,
+				values:      node.ColumnValues,
+				sortColumns: r.sortColumns,
+			}
+		}
+
+		// 相同元素进入treemap
+		key := treeMapKey{
+			sortValues:  node.SortColumnValues,
+			values:      node.ColumnValues,
+			sortColumns: r.sortColumns,
+		}
+		if key.compare(prevKey) == 0 {
+			err := r.treeMap.Put(key, struct{}{})
+			if err != nil {
+				return false, err
+			}
+			// 将后续元素加入heap
+			indexes = append(indexes, node.RowsListIndex)
+		} else {
+			// 如果排序列不相同将 拿出来的元素，重新塞进heap中
+			heap.Push(r.hp, node)
+			return r.preScanOneRowsByIndexes(indexes)
+		}
+	}
+}
+
+func (r *Rows) preScanOneRowsByIndexes(indexes []int) (bool, error) {
+	// 从数据变动的rows.Rows中预扫描一行
+	for _, index := range indexes {
+		err := r.preScanOneRows(index)
+		if err != nil {
+			return false, err
+		}
+	}
+	return false, nil
 }
 
 type Rows struct {
