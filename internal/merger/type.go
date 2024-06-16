@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/eorm/internal/merger/internal/errs"
 	"github.com/ecodeclub/eorm/internal/rows"
 )
@@ -67,6 +68,11 @@ func (c ColumnInfo) SelectName() string {
 func (c ColumnInfo) Validate() bool {
 	// ColumnInfo.Name中不能包含括号,也就是聚合函数, name = `id`, 而不是name = count(`id`)
 	// 聚合函数需要写在aggregateFunc字段中
+	aggregateFuncs := []string{"MAX", "MIN", "AVG", "SUM", "COUNT"}
+	if c.AggregateFunc != "" &&
+		!slice.ContainsFunc(aggregateFuncs, func(src string) bool { return strings.EqualFold(src, c.AggregateFunc) }) {
+		return false
+	}
 	return !strings.Contains(c.Name, "(")
 }
 
